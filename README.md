@@ -15,3 +15,4 @@ Username: busboy
 Password: 123
 
 Note: includes/settings.inc.php has the DB connection settings.
+oose.sql has the sample DB
