@@ -18,7 +18,8 @@ use Nimbus\Plugin\PluginStorage;
  * on its own `rest_*` tables (ADR 0005), behind its own wildcard-immune capability
  * (ADR 0015), on capability-gated admin pages (ADR 0020) and MCP tools (ADR 0016).
  *
- * Slice 1: the floor (tables). Orders, kitchen, payment, reservations and reports
+ * Slice 1: the floor (tables). Slice 2: orders + line items (menu read via the core
+ * content-read capability, ADR 0029). Kitchen, payment, reservations and reports
  * follow, each as its own slice.
  */
 final class RestaurantPlugin implements Plugin
@@ -29,6 +30,7 @@ final class RestaurantPlugin implements Plugin
     public function register(PluginContext $context): void
     {
         $context->migrations()->register('001_tables', Schema::tables());
+        $context->migrations()->register('002_orders', Schema::orders());
 
         // One coarse, wildcard-immune capability for v1 (danmat.restaurant:read/write).
         // Fine-grained staff roles are a recorded platform finding (F4), not app hacks.
@@ -37,9 +39,13 @@ final class RestaurantPlugin implements Plugin
         // Storage is taken lazily, so register() runs no query and loads without a database.
         $storage = static fn (): PluginStorage => $context->storage();
         $tables  = new Tables($storage);
+        // The menu is a Nimbus collection, read in-process via the content-read
+        // capability (ADR 0029); Orders snapshots a line's name+price through it.
+        $menu    = new Menu(static fn () => $context->content());
+        $orders  = new Orders($storage, $tables, static fn (int $menuItemId): ?array => $menu->snapshot($menuItemId));
 
         // The agent surface — every tool gates on danmat.restaurant:read|write (ADR 0016).
-        $context->mcp()->register(new RestaurantToolset($tables));
+        $context->mcp()->register(new RestaurantToolset($tables, $orders, $menu));
 
         // The floor board. A staff terminal is a capability-gated ADMIN PAGE, never a
         // public plugin route (routes carry no auth/CSRF). Gated on :write; the handler
@@ -91,6 +97,102 @@ final class RestaurantPlugin implements Plugin
                 $tables->delete((int) $idIn);
             }
             return Response::redirect('/admin/restaurant?ok=deleted');
+        });
+
+        // Orders terminal — list, open-on-table, and a single-order screen with the
+        // menu picker. A capability-gated admin page, same as the floor.
+        $context->adminPages()->register(
+            'restaurant-orders',
+            'Orders',
+            '🧾',
+            static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new OrdersAdmin($orders, $tables, $menu))->render($csrf, $r->query('ok') ?? $r->query('err'), $r->query('view'), $r->query('status'), $nonce),
+            self::ID . ':write',
+        );
+
+        // Where an order action returns to: back to the order screen it was on
+        // (?view), else the list.
+        $backToOrder = static function (Request $r): string {
+            $view = trim((string) ($r->input('view') ?? ''));
+            return ($view !== '' && ctype_digit($view)) ? '/admin/restaurant-orders?view=' . $view . '&' : '/admin/restaurant-orders?';
+        };
+
+        $context->adminPages()->action('restaurant-orders', 'order-open', static function (Request $r) use ($orders): Response {
+            $tableIn = trim((string) ($r->input('table_id') ?? ''));
+            if ($tableIn === '' || !ctype_digit($tableIn)) {
+                return Response::redirect('/admin/restaurant-orders?err=notable');
+            }
+            try {
+                $id = $orders->open((int) $tableIn, date('Y-m-d H:i:s'));
+                return Response::redirect('/admin/restaurant-orders?view=' . $id . '&ok=opened');
+            } catch (\Throwable) {
+                return Response::redirect('/admin/restaurant-orders?err=invalid');
+            }
+        });
+
+        $context->adminPages()->action('restaurant-orders', 'order-status', static function (Request $r) use ($orders, $backToOrder): Response {
+            $base = $backToOrder($r);
+            $idIn = trim((string) ($r->input('id') ?? ''));
+            if ($idIn !== '' && ctype_digit($idIn)) {
+                try {
+                    $orders->setStatus((int) $idIn, (string) ($r->input('status') ?? ''), date('Y-m-d H:i:s'));
+                } catch (\Throwable) {
+                    return Response::redirect($base . 'err=invalid');
+                }
+            }
+            return Response::redirect($base . 'ok=updated');
+        });
+
+        $context->adminPages()->action('restaurant-orders', 'order-add-item', static function (Request $r) use ($orders, $backToOrder): Response {
+            $base    = $backToOrder($r);
+            $orderIn = trim((string) ($r->input('order_id') ?? ''));
+            if ($orderIn === '' || !ctype_digit($orderIn)) {
+                return Response::redirect($base . 'err=invalid');
+            }
+            $menuIn = trim((string) ($r->input('menu_item_id') ?? ''));
+            $qtyIn  = trim((string) ($r->input('qty') ?? '1'));
+            try {
+                $orders->addItem(
+                    (int) $orderIn,
+                    ($menuIn !== '' && ctype_digit($menuIn)) ? (int) $menuIn : null,
+                    ($n = (string) ($r->input('name') ?? '')) !== '' ? $n : null,
+                    ($p = (string) ($r->input('price') ?? '')) !== '' ? $p : null,
+                    (ctype_digit($qtyIn) && (int) $qtyIn > 0) ? (int) $qtyIn : 1,
+                    date('Y-m-d H:i:s'),
+                );
+                return Response::redirect($base . 'ok=added');
+            } catch (\Throwable) {
+                return Response::redirect($base . 'err=invalid');
+            }
+        });
+
+        $context->adminPages()->action('restaurant-orders', 'order-set-qty', static function (Request $r) use ($orders, $backToOrder): Response {
+            $base   = $backToOrder($r);
+            $itemIn = trim((string) ($r->input('item_id') ?? ''));
+            $qtyIn  = trim((string) ($r->input('qty') ?? ''));
+            if ($itemIn !== '' && ctype_digit($itemIn) && $qtyIn !== '' && ctype_digit($qtyIn)) {
+                try {
+                    $orders->setItemQty((int) $itemIn, (int) $qtyIn, date('Y-m-d H:i:s'));
+                } catch (\Throwable) {
+                    return Response::redirect($base . 'err=invalid');
+                }
+            }
+            return Response::redirect($base . 'ok=updated');
+        });
+
+        $context->adminPages()->action('restaurant-orders', 'order-remove-item', static function (Request $r) use ($orders, $backToOrder): Response {
+            $itemIn = trim((string) ($r->input('item_id') ?? ''));
+            if ($itemIn !== '' && ctype_digit($itemIn)) {
+                $orders->removeItem((int) $itemIn);
+            }
+            return Response::redirect($backToOrder($r) . 'ok=removed');
+        });
+
+        $context->adminPages()->action('restaurant-orders', 'order-delete', static function (Request $r) use ($orders): Response {
+            $idIn = trim((string) ($r->input('id') ?? ''));
+            if ($idIn !== '' && ctype_digit($idIn)) {
+                $orders->delete((int) $idIn);
+            }
+            return Response::redirect('/admin/restaurant-orders?ok=deleted');
         });
 
         // Teach an MCP agent how to drive the restaurant (ADR 0013).
