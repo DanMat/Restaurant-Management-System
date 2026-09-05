@@ -28,7 +28,9 @@ collections. Zero Nimbus core change.
   closing findings F1/A2.
 - ✅ **Kitchen display** — a cook's screen (New → Preparing → Ready) advancing the
   order workflow; capability-gated admin page, auto-refresh, mobile.
-- ⬜ Payment, Staff & roles, Reservations, Reports — next.
+- ✅ **Payment & turn** — settle a bill (server-computed amount, method), close the
+  order, and turn the table (→ dirty → clean → open). The service loop is closed.
+- ⬜ Staff & roles, Reservations, Reports — next.
 
 ## Layout
 

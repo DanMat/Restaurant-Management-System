@@ -27,7 +27,8 @@ logic landing in Nimbus core.**
 | **Tables** | ✅ done (plugin) | No — coarse capability only (see F4) |
 | **Orders** | ✅ done (plugin) | **Yes — the plugin content-read capability (ADR 0029 in core), which closed F1/A2** |
 | **Kitchen display** | ✅ done (plugin) | No — an admin page (routes are public; not used) |
-| Reservations | ⬜ not started | tbd |
+| **Payment & turn** | ✅ done (plugin) | No — server-computed amount on the order |
+| Reservations | ⬜ not started | tbd (CRM guest link + PII gate) |
 | Reports | ⬜ not started | likely: dashboard widgets / aggregation |
 | Staff & roles | ⬜ not started | **yes — F4**: fine-grained plugin capabilities/roles (confirmed gap) |
 
