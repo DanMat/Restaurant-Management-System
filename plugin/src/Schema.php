@@ -52,12 +52,15 @@ final class Schema
     {
         return [
             'CREATE TABLE IF NOT EXISTS ' . self::ORDER . " (
-                id         BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                table_id   BIGINT UNSIGNED NOT NULL,
-                status     ENUM('open','sent','preparing','ready','served','closed') NOT NULL DEFAULT 'open',
-                paid       TINYINT(1) NOT NULL DEFAULT 0,
-                created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
+                id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                table_id       BIGINT UNSIGNED NOT NULL,
+                status         ENUM('open','sent','preparing','ready','served','closed') NOT NULL DEFAULT 'open',
+                paid           TINYINT(1) NOT NULL DEFAULT 0,
+                amount_paid    DECIMAL(10,2) NULL,
+                payment_method VARCHAR(20) NULL,
+                paid_at        DATETIME NULL,
+                created_at     DATETIME NOT NULL,
+                updated_at     DATETIME NOT NULL,
                 INDEX idx_order_table (table_id),
                 INDEX idx_order_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",

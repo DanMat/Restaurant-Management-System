@@ -74,7 +74,7 @@ final class RestaurantToolsetTest extends TestCase
         self::assertSame([
             'restaurant_tables', 'restaurant_table_get', 'restaurant_table_set', 'restaurant_table_status', 'restaurant_table_delete',
             'restaurant_menu', 'restaurant_order_open', 'restaurant_orders', 'restaurant_order_get', 'restaurant_order_status',
-            'restaurant_order_add_item', 'restaurant_order_set_item_qty', 'restaurant_order_remove_item', 'restaurant_order_delete',
+            'restaurant_order_add_item', 'restaurant_order_set_item_qty', 'restaurant_order_remove_item', 'restaurant_order_pay', 'restaurant_order_delete',
             'restaurant_kitchen',
         ], $names);
     }
@@ -120,6 +120,31 @@ final class RestaurantToolsetTest extends TestCase
         self::assertSame('sent', $this->toolset->call('restaurant_order_get', ['id' => $orderId], $write, $this->ctx)['order']['status']);
 
         self::assertTrue($this->toolset->call('restaurant_order_delete', ['id' => $orderId], $write, $this->ctx)['deleted']);
+    }
+
+    public function test_paying_over_mcp_charges_the_computed_total(): void
+    {
+        $write = $this->principal('danmat.restaurant:read', 'danmat.restaurant:write');
+        $tid   = $this->toolset->call('restaurant_table_set', ['label' => '9'], $write, $this->ctx)['table']['id'];
+        $oid   = $this->toolset->call('restaurant_order_open', ['table_id' => $tid], $write, $this->ctx)['order']['id'];
+        $this->toolset->call('restaurant_order_add_item', ['order_id' => $oid, 'name' => 'Steak', 'price' => '20', 'qty' => 2], $write, $this->ctx);
+
+        // The tool takes only a method — no amount can be supplied.
+        $out = $this->toolset->call('restaurant_order_pay', ['id' => $oid, 'method' => 'card'], $write, $this->ctx);
+        self::assertTrue($out['ok']);
+        self::assertSame('40.00', $out['order']['amount_paid'], 'charged the computed total');
+        self::assertSame('closed', $out['order']['status']);
+        self::assertSame('dirty', $this->toolset->call('restaurant_table_get', ['id' => $tid], $write, $this->ctx)['table']['status']);
+    }
+
+    public function test_a_bad_payment_method_comes_back_as_data(): void
+    {
+        $write = $this->principal('danmat.restaurant:read', 'danmat.restaurant:write');
+        $tid   = $this->toolset->call('restaurant_table_set', ['label' => '9'], $write, $this->ctx)['table']['id'];
+        $oid   = $this->toolset->call('restaurant_order_open', ['table_id' => $tid], $write, $this->ctx)['order']['id'];
+        $out   = $this->toolset->call('restaurant_order_pay', ['id' => $oid, 'method' => 'iou'], $write, $this->ctx);
+        self::assertFalse($out['ok']);
+        self::assertSame('invalid', $out['error']);
     }
 
     public function test_a_content_token_cannot_reach_orders(): void

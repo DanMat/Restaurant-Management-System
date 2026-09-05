@@ -95,4 +95,33 @@ final class OrdersAdminTest extends TestCase
         self::assertStringContainsString('Mark served', $html);
         self::assertStringNotContainsString('Send to kitchen', $html);
     }
+
+    public function test_an_unpaid_order_shows_a_payment_form_with_the_total_but_no_amount_input(): void
+    {
+        $id = $this->openOrder();
+        $this->orders->addItem($id, null, 'Wine', '10', 2, '2026-01-01 12:00:00');
+
+        $html = $this->admin->render('CSRF123', null, (string) $id, null, 'n');
+
+        self::assertStringContainsString('Take payment', $html);
+        self::assertStringContainsString('action="/admin/restaurant-orders/order-pay"', $html);
+        self::assertStringContainsString('Total due', $html);
+        self::assertStringContainsString('20.00', $html);
+        // The amount is never a form input — only the method is chosen.
+        self::assertStringNotContainsString('name="amount"', $html, 'the amount is server-computed, not entered');
+        self::assertStringContainsString('name="method"', $html);
+    }
+
+    public function test_a_paid_order_shows_a_receipt_not_a_form(): void
+    {
+        $id = $this->openOrder();
+        $this->orders->addItem($id, null, 'Wine', '10', 1, '2026-01-01 12:00:00');
+        $this->orders->pay($id, 'cash', '2026-01-01 12:30:00');
+
+        $html = $this->admin->render('CSRF123', null, (string) $id, null, 'n');
+
+        self::assertStringContainsString('Paid 10.00', $html);
+        self::assertStringContainsString('Cash', $html);
+        self::assertStringNotContainsString('Take payment', $html, 'no pay form once settled');
+    }
 }

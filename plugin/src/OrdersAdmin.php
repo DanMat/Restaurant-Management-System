@@ -20,6 +20,7 @@ final class OrdersAdmin
         'updated'   => ['ok', 'Order updated.'],
         'removed'   => ['ok', 'Item removed.'],
         'deleted'   => ['ok', 'Order deleted.'],
+        'paid'      => ['ok', 'Payment taken — table sent for bussing.'],
         'notable'   => ['err', 'Pick a table to open an order on.'],
         'invalid'   => ['err', 'Check the details and try again.'],
     ];
@@ -137,6 +138,7 @@ final class OrdersAdmin
             . '<tfoot><tr><th colspan="3" style="text-align:right">Total</th><th>' . self::e((string) $order['total']) . '</th><th></th></tr></tfoot></table>'
             . $this->addItemForm($csrf, $id)
             . $this->statusActions($csrf, $id, (string) $order['status'])
+            . $this->paymentBlock($csrf, $order)
             . '<form method="post" action="/admin/restaurant-orders/order-delete" data-confirm="Delete this whole order?" class="rz-order-del">'
             . '<input type="hidden" name="_csrf" value="' . self::e($csrf) . '">'
             . '<input type="hidden" name="id" value="' . self::e((string) $id) . '">'
@@ -163,10 +165,10 @@ final class OrdersAdmin
 
     private function statusActions(string $csrf, int $orderId, string $status): string
     {
+        // "served" is not offered a Close button — taking payment closes the order.
         $moves = match ($status) {
             'open'                        => [['sent', 'Send to kitchen']],
             'sent', 'preparing', 'ready'  => [['served', 'Mark served']],
-            'served'                      => [['closed', 'Close order']],
             default                       => [],
         };
         if ($moves === []) {
@@ -182,6 +184,32 @@ final class OrdersAdmin
                 . '<button type="submit" class="nb-btn">' . self::e($verb) . '</button></form>';
         }
         return $html . '</div>';
+    }
+
+    /** @param array<string,mixed> $order */
+    private function paymentBlock(string $csrf, array $order): string
+    {
+        if ((bool) $order['paid']) {
+            $method = self::e((string) ($order['payment_method'] ?? ''));
+            $amount = self::e((string) ($order['amount_paid'] ?? $order['total']));
+            $when   = self::e((string) ($order['paid_at'] ?? ''));
+            return '<div class="rz-paid">✓ Paid ' . $amount . ($method !== '' ? ' by ' . ucfirst($method) : '') . ($when !== '' ? ' · ' . $when : '') . '</div>';
+        }
+
+        $options = '';
+        foreach (Orders::PAYMENT_METHODS as $m) {
+            $options .= '<option value="' . self::e($m) . '">' . self::e(ucfirst($m)) . '</option>';
+        }
+        // The amount is not an input — it is the computed total, charged server-side.
+        return '<div class="rz-pay"><h3>Take payment</h3>'
+            . '<p class="rz-pay-total">Total due <strong>' . self::e((string) $order['total']) . '</strong></p>'
+            . '<form method="post" action="/admin/restaurant-orders/order-pay" class="rz-form rz-inline">'
+            . '<input type="hidden" name="_csrf" value="' . self::e($csrf) . '">'
+            . '<input type="hidden" name="view" value="' . self::e((string) $order['id']) . '">'
+            . '<input type="hidden" name="id" value="' . self::e((string) $order['id']) . '">'
+            . '<label>Method<select name="method">' . $options . '</select></label>'
+            . '<div class="rz-actions"><button type="submit" class="nb-btn">Take payment</button></div>'
+            . '</form></div>';
     }
 
     private function notice(?string $code): string
@@ -216,6 +244,9 @@ final class OrdersAdmin
             . '.rz-badge-served{background:rgba(128,128,128,.2)}'
             . '.rz-badge-closed{background:rgba(120,120,120,.15);opacity:.8}'
             . '.rz-status-acts{display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 1.25rem}'
+            . '.rz-pay{border-top:1px solid rgba(128,128,128,.2);padding-top:1rem;margin-top:.5rem}'
+            . '.rz-pay-total{font-size:1.05rem}'
+            . '.rz-paid{margin:.5rem 0 0;padding:.6rem .8rem;border-radius:8px;background:rgba(39,174,96,.15);color:#1e8449;font-weight:700}'
             . '.rz-rowact{text-align:right}'
             . '.rz-order-del{margin-top:1rem}'
             . '.rz-link-danger{background:none;border:0;color:#c0392b;font:inherit;cursor:pointer;text-decoration:underline;padding:.25rem 0;min-height:36px}'
