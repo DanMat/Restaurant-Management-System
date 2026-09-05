@@ -21,9 +21,12 @@ collections. Zero Nimbus core change.
 
 - ✅ **Menu** — categories and priced menu items, as Nimbus collections. Proven.
 - ✅ **Tables (the floor)** — the `restaurant` plugin: `rest_table` with live
-  status, a mobile floor board, capability-gated admin + MCP. First operational
-  vertical; validated the plugin architecture.
-- ⬜ Orders, Kitchen display, Payment, Staff & roles, Reservations, Reports — next.
+  status, a mobile floor board, capability-gated admin + MCP.
+- ✅ **Orders** — `rest_order` + `rest_order_item`: open on a table, pick from the
+  menu (snapshotting name + price), quantities, workflow, server-computed totals,
+  admin + MCP. Forced and consumes the new core content-read capability (ADR 0029),
+  closing findings F1/A2.
+- ⬜ Kitchen display, Payment, Staff & roles, Reservations, Reports — next.
 
 ## Layout
 

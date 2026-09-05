@@ -24,8 +24,8 @@ logic landing in Nimbus core.**
 | Vertical | Status | Needed a new core capability? |
 |----------|--------|-------------------------------|
 | **Menu** (categories, priced items) | ✅ proven on stock Nimbus | No |
-| Tables | ⬜ not started | likely: a user/staff reference field |
-| Orders | ⬜ not started | likely: repeatable line items, workflow state |
+| **Tables** | ✅ done (plugin) | No — coarse capability only (see F4) |
+| **Orders** | ✅ done (plugin) | **Yes — the plugin content-read capability (ADR 0029 in core), which closed F1/A2** |
 | Kitchen display | ⬜ not started | likely: plugin routes + admin pages |
 | Reservations | ⬜ not started | tbd |
 | Reports | ⬜ not started | likely: dashboard widgets / aggregation |
@@ -60,13 +60,29 @@ These are things the Menu vertical surfaced. None *blocked* Menu, so none has
 been built yet — they are logged for when a later vertical makes them a
 blocker, at which point each becomes a Nimbus core PR with its own ADR.
 
-### F1 — The API returns relations as bare ids
+### F1 / A2 — Plugins had no in-process way to read a collection — ✅ RESOLVED (NimbusCMS ADR 0029)
+
+**Resolved 2026-09-05** by a core capability the Orders vertical forced: a
+read-only, published-only `ContentReader` exposed to plugins as
+`PluginContext::content()` ([NimbusCMS PR #209](https://github.com/NimbusCMS/nimbus/pull/209),
+core ADR 0029). The restaurant's `Menu` reads `menu_items` through it and snapshots
+each ordered line's name + price. This is the platform-validation initiative working
+as intended: the app drove the *smallest broadly-reusable* core capability, landed
+with its own ADR + reviews in core, no restaurant-specific logic in it. The
+relation-expansion note below is subsumed — `ContentReader` returns entries with
+references expanded (like a theme).
+
+<details><summary>Original F1 analysis (subsumed by ADR 0029)</summary>
+
+#### F1 — The API returns relations as bare ids
 
 `"category": [15]` means a frontend must make a second call per category to
 render "Margherita — *Mains* — $12.50". **Candidate capability:** relation (and
 in general, reference) *expansion* in the read API — the same enrichment media
 fields already get. Broadly reusable; almost every real frontend wants it.
 **Severity:** high — likely the first capability Orders/Menu-frontend forces.
+
+</details>
 
 ### F2 — How an application consumes Nimbus — ✅ DECIDED (ADR-0001)
 
