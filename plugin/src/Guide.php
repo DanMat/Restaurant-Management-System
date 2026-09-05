@@ -23,6 +23,9 @@ final class Guide
         content `*:write` token cannot reach it, and a tool you lack the capability
         for is invisible.
 
+        Amounts are strings with two decimals; order totals are always computed from
+        the line items, never set directly.
+
         ## Tables (the floor)
 
         A table has a unique `label` (its number/name), a `seats` count, and a
@@ -40,6 +43,26 @@ final class Guide
         - `restaurant_table_delete` — remove a table by `id`.
 
         Values are stored as you send them and escaped when displayed.
+
+        ## Menu & orders
+
+        The menu is a Nimbus collection; read it with `restaurant_menu` (each item has
+        an id, name and price). An order lives on a table and moves through a workflow:
+        `open` → `sent` (to the kitchen) → `preparing` → `ready` → `served` → `closed`.
+
+        - `restaurant_order_open` — open an order on a table (which becomes occupied).
+        - `restaurant_orders` — list orders, filter by `status` and/or `table_id`.
+        - `restaurant_order_get` — one order with its line items and computed total.
+        - `restaurant_order_status` — advance the workflow.
+        - `restaurant_order_add_item` — add a line: give a `menu_item_id` to add from
+          the menu (its name + price are snapshotted), or a `name` + `price` for a
+          manual line, plus a `qty`.
+        - `restaurant_order_set_item_qty` — change a line's quantity (0 removes it).
+        - `restaurant_order_remove_item` — remove a line.
+        - `restaurant_order_delete` — delete an order and its lines.
+
+        A line snapshots the item's name and price when added, so editing the menu
+        later never changes an existing order.
         MD;
     }
 }

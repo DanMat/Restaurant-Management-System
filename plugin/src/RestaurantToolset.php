@@ -25,8 +25,11 @@ use Nimbus\Mcp\PluginToolset;
  */
 final class RestaurantToolset extends PluginToolset
 {
-    public function __construct(private Tables $tables)
-    {
+    public function __construct(
+        private Tables $tables,
+        private Orders $orders,
+        private MenuSource $menu,
+    ) {
     }
 
     public function namespace(): string
@@ -76,7 +79,184 @@ final class RestaurantToolset extends PluginToolset
                 'required'   => ['id'],
                 'properties' => ['id' => $id],
             ], $this->tableDelete(...)),
+
+            new PluginTool('menu', 'read', 'List the menu items available to order (from the menu collection), each with a price.', [
+                'type'       => 'object',
+                'properties' => new \stdClass(),
+            ], $this->menu(...)),
+
+            new PluginTool('order_open', 'write', 'Open a new order on a table (which becomes occupied). Returns the order.', [
+                'type'       => 'object',
+                'required'   => ['table_id'],
+                'properties' => ['table_id' => ['type' => 'integer', 'description' => 'The table to open the order on.']],
+            ], $this->orderOpen(...)),
+
+            new PluginTool('orders', 'read', 'List orders, optionally filtered by status and/or table.', [
+                'type'       => 'object',
+                'properties' => [
+                    'status'   => ['type' => 'string', 'enum' => Orders::STATUSES, 'description' => 'Optional workflow-status filter.'],
+                    'table_id' => ['type' => 'integer', 'description' => 'Optional table filter.'],
+                ],
+            ], $this->orders(...)),
+
+            new PluginTool('order_get', 'read', 'One order with its line items and computed total, or none.', [
+                'type'       => 'object',
+                'required'   => ['id'],
+                'properties' => ['id' => ['type' => 'integer', 'description' => 'The order id.']],
+            ], $this->orderGet(...)),
+
+            new PluginTool('order_status', 'write', 'Advance an order through the workflow (open→sent→preparing→ready→served→closed).', [
+                'type'       => 'object',
+                'required'   => ['id', 'status'],
+                'properties' => [
+                    'id'     => ['type' => 'integer', 'description' => 'The order id.'],
+                    'status' => ['type' => 'string', 'enum' => Orders::STATUSES, 'description' => 'The new status.'],
+                ],
+            ], $this->orderStatus(...)),
+
+            new PluginTool('order_add_item', 'write', 'Add a line to an order — from the menu (menu_item_id, snapshotting its name+price) or a manual line (name+price).', [
+                'type'       => 'object',
+                'required'   => ['order_id'],
+                'properties' => [
+                    'order_id'     => ['type' => 'integer', 'description' => 'The order to add to.'],
+                    'menu_item_id' => ['type' => 'integer', 'description' => 'A menu item id to add (snapshots its name + price).'],
+                    'name'         => ['type' => 'string', 'description' => 'A manual line name (when not adding from the menu).'],
+                    'price'        => ['type' => 'string', 'description' => 'A manual line unit price (with menu_item_id omitted).'],
+                    'qty'          => ['type' => 'integer', 'description' => 'How many. Defaults to 1.'],
+                ],
+            ], $this->orderAddItem(...)),
+
+            new PluginTool('order_set_item_qty', 'write', 'Change a line item quantity; 0 removes it.', [
+                'type'       => 'object',
+                'required'   => ['item_id', 'qty'],
+                'properties' => [
+                    'item_id' => ['type' => 'integer', 'description' => 'The line item id.'],
+                    'qty'     => ['type' => 'integer', 'description' => 'The new quantity (0 to remove).'],
+                ],
+            ], $this->orderSetItemQty(...)),
+
+            new PluginTool('order_remove_item', 'write', 'Remove a line item from an order.', [
+                'type'       => 'object',
+                'required'   => ['item_id'],
+                'properties' => ['item_id' => ['type' => 'integer', 'description' => 'The line item id.']],
+            ], $this->orderRemoveItem(...)),
+
+            new PluginTool('order_delete', 'write', 'Delete an order and its line items.', [
+                'type'       => 'object',
+                'required'   => ['id'],
+                'properties' => ['id' => ['type' => 'integer', 'description' => 'The order id.']],
+            ], $this->orderDelete(...)),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function menu(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $items = $this->menu->items();
+        return ['menu' => $items, 'count' => count($items)];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderOpen(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $orderId = $this->orders->open($this->requireInt($a, 'table_id'), $this->now());
+            return ['ok' => true, 'order' => $this->orders->get($orderId)];
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orders(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $list = $this->orders->all($this->nullableStr($a, 'status'), $this->nullableInt($a, 'table_id'));
+        return ['orders' => $list, 'count' => count($list)];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderGet(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $id = $this->requireInt($a, 'id');
+        return ['id' => $id, 'order' => $this->orders->get($id)];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderStatus(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $id      = $this->requireInt($a, 'id');
+            $changed = $this->orders->setStatus($id, (string) ($a['status'] ?? ''), $this->now());
+            return ['ok' => true, 'changed' => $changed > 0, 'order' => $this->orders->get($id)];
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderAddItem(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $orderId = $this->requireInt($a, 'order_id');
+            $qtyRaw  = $this->nullableInt($a, 'qty');
+            $this->orders->addItem(
+                $orderId,
+                $this->nullableInt($a, 'menu_item_id'),
+                $this->nullableStr($a, 'name'),
+                $this->nullableStr($a, 'price'),
+                $qtyRaw ?? 1,
+                $this->now(),
+            );
+            return ['ok' => true, 'order' => $this->orders->get($orderId)];
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderSetItemQty(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $itemId  = $this->requireInt($a, 'item_id');
+            $qty     = $this->requireInt($a, 'qty');
+            $changed = $this->orders->setItemQty($itemId, $qty, $this->now());
+            return ['ok' => true, 'changed' => $changed > 0];
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderRemoveItem(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $itemId = $this->requireInt($a, 'item_id');
+        return ['ok' => true, 'removed' => $this->orders->removeItem($itemId) > 0];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderDelete(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $id = $this->requireInt($a, 'id');
+        return ['ok' => true, 'deleted' => $this->orders->delete($id) > 0];
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace DanMat\Restaurant\Tests;
 
+use DanMat\Restaurant\Menu;
+use DanMat\Restaurant\Orders;
 use DanMat\Restaurant\RestaurantToolset;
 use DanMat\Restaurant\Schema;
 use DanMat\Restaurant\Tables;
@@ -35,13 +37,21 @@ final class RestaurantToolsetTest extends TestCase
             'user' => getenv('TEST_DB_USER') ?: 'root',
             'pass' => ($p = getenv('TEST_DB_PASS')) !== false ? $p : 'root',
         ]);
-        foreach (Schema::tables() as $sql) {
+        foreach ([...Schema::tables(), ...Schema::orders()] as $sql) {
             $db->execute($sql);
         }
         $db->execute('TRUNCATE ' . Schema::TABLE);
+        $db->execute('TRUNCATE ' . Schema::ORDER);
+        $db->execute('TRUNCATE ' . Schema::ORDER_ITEM);
 
-        $storage       = new PluginStorage($db);
-        $this->toolset = new RestaurantToolset(new Tables(static fn (): PluginStorage => $storage));
+        $storage = new PluginStorage($db);
+        $tables  = new Tables(static fn (): PluginStorage => $storage);
+        $orders  = new Orders(static fn (): PluginStorage => $storage, $tables, static fn (int $id): ?array => null);
+        // The menu reader is never exercised here (order lines are manual), so a
+        // reader that would need core content is fine left unbuilt.
+        $menu = new Menu(static fn () => throw new \RuntimeException('no content reader in this test'));
+
+        $this->toolset = new RestaurantToolset($tables, $orders, $menu);
         $this->toolset->bindTo('danmat.restaurant');
         $this->ctx = new EntryOpContext('127.0.0.1', '/api/v1/mcp');
 
@@ -61,13 +71,45 @@ final class RestaurantToolsetTest extends TestCase
     public function test_the_tools_are_namespaced_and_split_read_from_write(): void
     {
         $names = array_column($this->toolset->definitions($this->principal('danmat.restaurant:read', 'danmat.restaurant:write')), 'name');
-        self::assertSame(['restaurant_tables', 'restaurant_table_get', 'restaurant_table_set', 'restaurant_table_status', 'restaurant_table_delete'], $names);
+        self::assertSame([
+            'restaurant_tables', 'restaurant_table_get', 'restaurant_table_set', 'restaurant_table_status', 'restaurant_table_delete',
+            'restaurant_menu', 'restaurant_order_open', 'restaurant_orders', 'restaurant_order_get', 'restaurant_order_status',
+            'restaurant_order_add_item', 'restaurant_order_set_item_qty', 'restaurant_order_remove_item', 'restaurant_order_delete',
+        ], $names);
     }
 
     public function test_a_read_only_token_sees_only_the_read_tools(): void
     {
         $names = array_column($this->toolset->definitions($this->principal('danmat.restaurant:read')), 'name');
-        self::assertSame(['restaurant_tables', 'restaurant_table_get'], $names);
+        self::assertSame(['restaurant_tables', 'restaurant_table_get', 'restaurant_menu', 'restaurant_orders', 'restaurant_order_get'], $names);
+    }
+
+    public function test_an_order_can_be_run_end_to_end_over_mcp(): void
+    {
+        $write = $this->principal('danmat.restaurant:read', 'danmat.restaurant:write');
+        $tid   = $this->toolset->call('restaurant_table_set', ['label' => '5'], $write, $this->ctx)['table']['id'];
+
+        $opened = $this->toolset->call('restaurant_order_open', ['table_id' => $tid], $write, $this->ctx);
+        self::assertTrue($opened['ok']);
+        $orderId = $opened['order']['id'];
+        self::assertSame('occupied', $this->toolset->call('restaurant_table_get', ['id' => $tid], $write, $this->ctx)['table']['status']);
+
+        // A manual line (no menu read needed): 2 × 6.00.
+        $this->toolset->call('restaurant_order_add_item', ['order_id' => $orderId, 'name' => 'House wine', 'price' => '6', 'qty' => 2], $write, $this->ctx);
+        $got = $this->toolset->call('restaurant_order_get', ['id' => $orderId], $write, $this->ctx);
+        self::assertSame('12.00', $got['order']['total']);
+
+        $this->toolset->call('restaurant_order_status', ['id' => $orderId, 'status' => 'sent'], $write, $this->ctx);
+        self::assertSame('sent', $this->toolset->call('restaurant_order_get', ['id' => $orderId], $write, $this->ctx)['order']['status']);
+
+        self::assertTrue($this->toolset->call('restaurant_order_delete', ['id' => $orderId], $write, $this->ctx)['deleted']);
+    }
+
+    public function test_a_content_token_cannot_reach_orders(): void
+    {
+        $this->expectException(McpError::class);
+        $this->expectExceptionMessage('Unknown tool "restaurant_order_open"');
+        $this->toolset->call('restaurant_order_open', ['table_id' => 1], $this->principal('*:read', '*:write'), $this->ctx);
     }
 
     public function test_a_content_token_cannot_reach_the_floor(): void
