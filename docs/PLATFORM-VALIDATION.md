@@ -29,7 +29,7 @@ logic landing in Nimbus core.**
 | Kitchen display | ⬜ not started | likely: plugin routes + admin pages |
 | Reservations | ⬜ not started | tbd |
 | Reports | ⬜ not started | likely: dashboard widgets / aggregation |
-| Staff & roles | ⬜ not started | likely: custom roles / capability model |
+| Staff & roles | ⬜ not started | **yes — F4**: fine-grained plugin capabilities/roles (confirmed gap) |
 
 ---
 
@@ -101,6 +101,29 @@ most shapes how every Nimbus application is packaged, so it is called out
 separately for a deliberate choice rather than an accidental one.
 
 </details>
+
+### F4 — Fine-grained, plugin-defined capabilities / roles
+
+Surfaced by the **design review**, before code. Stock Nimbus gives a plugin
+**one** wildcard-immune capability (its own id) and gates admin pages/actions on
+`{pluginId}:read|write` only (verified in `AdminPageRegistrar::isGateableCapability`).
+The restaurant has six roles with genuinely different permissions
+(waiter/host/busboy/cook/manager/admin) — a cook must not take payment, a busboy
+only clears tables. That cannot be expressed at the gate today.
+
+**v1 approach:** one coarse `danmat.restaurant:read|write` capability, with the
+finer distinctions enforced **in-app** in the handlers that matter (comp/void =
+manager-checked in code).
+
+**Candidate capability (smallest first):**
+- admin-page/action gating on an arbitrary *declared action* (not just
+  read/write), so a plugin can gate on `danmat.restaurant:kitchen`; **or**
+- a plugin declaring additional wildcard-immune capability ids; **or**
+- a first-class **roles** concept (named capability bundles) — ADR 0009 already
+  anticipates this.
+
+**Severity:** high for the **Staff & roles** vertical (its blocker); until then,
+non-blocking. This is the rebuild's most likely *second* core PR after F1.
 
 ### F3 — Numbers drop trailing decimals (`8.00` → `8`)
 

@@ -143,43 +143,85 @@ Discipline carried over from the CRM build (non-negotiable):
 
 ## 5. Capabilities & staff roles
 
-The plugin declares its own wildcard-immune capabilities (app-local, not core):
+**What stock Nimbus supports today** (verified against `AdminPageRegistrar` and
+ADR 0015): a plugin declares **one** wildcard-immune capability — its own id —
+and admin-page/action gating accepts only `{pluginId}:read` or `{pluginId}:write`.
+A plugin cannot today gate a page on a bespoke capability id like
+`danmat.restaurant.floor`, nor on an action other than read/write.
 
-- `danmat.restaurant.floor` — seat/clear tables, open orders, add items, take
-  payment (waiter, host, busboy).
-- `danmat.restaurant.kitchen` — see and advance kitchen tickets (cook).
-- `danmat.restaurant.manage` — menu, staff, reports, settings (manager, admin).
+So **v1 uses a single capability**, `danmat.restaurant` with `read`/`write`:
 
-Legacy roles map to bundles of these grants on Nimbus **users**:
+- `danmat.restaurant:read` — see the floor, orders, kitchen, reports.
+- `danmat.restaurant:write` — operate them (seat, order, cook, pay, manage).
 
-| Legacy role | Capabilities |
-|---|---|
-| waiter | floor |
-| host | floor |
-| busboy | floor (clear/clean only — enforced in-app) |
-| cook | kitchen |
-| manager | manage (+ floor, kitchen to observe) |
-| admin | manage + Nimbus admin |
+Any restaurant staff member is a Nimbus **user** granted read and/or write. This
+is coarse — it cannot, on stock Nimbus, stop a cook from taking payment or limit
+a busboy to clearing. That separation is a real platform gap, logged as **F4**.
 
-This deliberately exercises Nimbus's capability model (a ledger "likely need").
-If a first-class *roles* concept (named capability bundles) proves broadly
-reusable while doing this, that becomes a Nimbus core PR + ADR — not app code.
+### F4 — fine-grained, plugin-defined capabilities / roles (a core finding)
+
+The legacy system has six roles (waiter/host/busboy/cook/manager/admin) with
+genuinely different permissions. Nimbus can't express that at the gate today
+(one capability per plugin, read/write only). This is exactly the kind of
+capability the validation initiative exists to surface. When the **Staff & roles**
+slice makes it a blocker, it becomes the rebuild's core PR — the *smallest*
+reusable form, with an ADR: e.g. plugins declaring additional wildcard-immune
+capabilities, or admin-page gating on arbitrary declared actions, or a
+first-class roles (named capability bundles) concept. Until then, finer role
+logic is enforced **in-app** inside handlers where it matters (a comp/void is
+manager-checked in code), on top of the coarse `read`/`write` gate.
+
 Passwords are Nimbus's problem now; the legacy MD5 `pwd` column dies with
 `master`.
 
 ---
 
-## 6. The terminals (routes + admin pages)
+## 6. The terminals (admin pages — **not** public routes)
+
+**Security-critical (from the security review):** plugin routes
+(`RouteRegistrar`, ADR 0017) are **public** — outside the admin auth middleware,
+no automatic CSRF, "the plugin owns its authentication." Every staff terminal
+handles operational data and mutations, so **every terminal is a capability-gated
+admin page (ADR 0020)** — never a plugin route. Routes are reserved for genuinely
+public surfaces (none needed in v1; the public menu is the theme's job).
 
 - **Public menu** — the theme renders the `menu_items` collection. Read-only,
-  public.
-- **Floor terminal** (waiter/host/busboy) — a plugin admin page / route: the
-  floor as a grid of tables by status; tap a table to open/append an order, send
-  to kitchen, take payment, mark cleared. Mobile-first.
-- **Kitchen display** (cook) — a plugin route: open tickets grouped by state
-  (`sent` → `preparing` → `ready`), tap to advance. Auto-refresh (poll) in v1;
-  real-time transport is a later, non-core concern.
-- **Manager dashboard** — reports: today's covers and revenue, and the menu.
+  public. (Theme, not a plugin route.)
+- **Floor terminal** (waiter/host/busboy) — admin page: the floor as a grid of
+  tables by status; tap a table to open/append an order, send to kitchen, take
+  payment, mark cleared. Mobile-first.
+- **Kitchen display** (cook) — admin page: open tickets grouped by state
+  (`sent` → `preparing` → `ready`), tap to advance. Auto-refresh (poll, meta or
+  fetch) in v1; real-time transport is a later, non-core concern.
+- **Manager dashboard** — admin page: today's covers and revenue, and the menu.
+
+All are gated on `danmat.restaurant:write` (or `:read` for read-only views) and
+inherit core CSRF on their POST actions.
+
+## 6a. Security controls (merge bar per slice)
+
+Carried from the CRM build and pinned by the security review; each is a
+regression test in the slice that introduces the surface:
+
+- **Capability-gate every surface** — admin pages/actions and MCP tools on the
+  wildcard-immune `danmat.restaurant` capability; a content `*:write` token can
+  never operate the restaurant; denied MCP tools report as unknown.
+- **Server-computed money** — order totals are derived from line items on the
+  server; the client never sends a total or a `paid` amount to be trusted.
+  Voids/comps are manager-checked in-app; money events are audited **without**
+  guest PII.
+- **Cross-plugin CRM PII (decided at the Reservations slice):** the restaurant
+  stores only a CRM `contact_id`; a guest's name/phone is resolved for display
+  **only** to a principal that also holds `nimbuscms.crm:read` — otherwise the
+  reservation shows a neutral label. The restaurant never copies CRM PII into its
+  own tables to dodge the CRM gate.
+- **Store raw, escape on render** — table labels, order notes, item snapshots all
+  escaped on output; styles in a nonce'd `<style>` block.
+- **Bound SQL + allow-listed enums** — table status and order workflow are
+  write-time allow-lists, never interpolated; every id bound.
+- **Total, transactional deletes / graceful dangling refs** — a deleted CRM
+  guest leaves only a harmless dangling `contact_id` (its PII is gone with the
+  CRM row); the restaurant renders that as "guest removed", never errors.
 
 Order workflow (replaces the legacy `done`/`paid` tinyints):
 `open → sent → preparing → ready → served → closed`, with `paid` orthogonal, all
