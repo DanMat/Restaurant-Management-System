@@ -68,7 +68,18 @@ in general, reference) *expansion* in the read API — the same enrichment media
 fields already get. Broadly reusable; almost every real frontend wants it.
 **Severity:** high — likely the first capability Orders/Menu-frontend forces.
 
-### F2 — No supported way to consume Nimbus from a separate app repo
+### F2 — How an application consumes Nimbus — ✅ DECIDED (ADR-0001)
+
+**Resolved 2026-09-05** ([`adr/0001`](adr/0001-restaurant-as-a-colocated-nimbus-plugin.md)):
+the app's restaurant-specific logic is a **co-located Nimbus plugin** in this
+repo's `plugin/` (`type: nimbuscms-plugin`), and a deployed Nimbus site consumes
+it via a Composer **path repository** — Nimbus stays the root project, no
+Packagist needed. Guests reuse the official CRM plugin; the menu stays
+collections. The original analysis is kept below for the record.
+
+<details><summary>Original F2 analysis (superseded by ADR-0001)</summary>
+
+#### F2 — No supported way to consume Nimbus from a separate app repo
 
 Nimbus runs only as the **root project** today: `Config::basePath()` resolves
 to the package directory, it is not on Packagist, and there is no published
@@ -88,6 +99,8 @@ this app does).
 **Severity:** foundational, but not a Menu blocker. This is the decision that
 most shapes how every Nimbus application is packaged, so it is called out
 separately for a deliberate choice rather than an accidental one.
+
+</details>
 
 ### F3 — Numbers drop trailing decimals (`8.00` → `8`)
 
