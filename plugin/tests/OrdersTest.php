@@ -165,6 +165,35 @@ final class OrdersTest extends TestCase
         self::assertNull($this->orders->get($id));
     }
 
+    public function test_tickets_by_status_returns_the_kitchen_queue_oldest_first(): void
+    {
+        // Two orders in the kitchen (sent, preparing), one still open, one served.
+        $a = $this->orders->open($this->table('1'), '2026-01-01 12:00:00');
+        $this->orders->addItem($a, 101, null, null, 2, '2026-01-01 12:00:00');
+        $this->orders->setStatus($a, 'sent', '2026-01-01 12:01:00');
+
+        $b = $this->orders->open($this->table('2'), '2026-01-01 12:05:00');
+        $this->orders->setStatus($b, 'preparing', '2026-01-01 12:06:00');
+
+        $open   = $this->orders->open($this->table('3'), '2026-01-01 12:10:00');
+        $served = $this->orders->open($this->table('4'), '2026-01-01 12:11:00');
+        $this->orders->setStatus($served, 'served', '2026-01-01 12:12:00');
+
+        $tickets = $this->orders->ticketsByStatus(['sent', 'preparing', 'ready']);
+
+        self::assertCount(2, $tickets, 'only kitchen-state orders, not open or served');
+        self::assertSame($a, $tickets[0]['id'], 'oldest ticket first (FIFO)');
+        self::assertSame($b, $tickets[1]['id']);
+        self::assertSame('Margherita', $tickets[0]['items'][0]['name']);
+        self::assertSame(2, $tickets[0]['items'][0]['qty']);
+        self::assertNotContains($open, array_column($tickets, 'id'));
+    }
+
+    public function test_tickets_by_status_ignores_unknown_statuses(): void
+    {
+        self::assertSame([], $this->orders->ticketsByStatus(['nonsense']));
+    }
+
     public function test_all_filters_by_status_and_table(): void
     {
         $t1 = $this->table('1');

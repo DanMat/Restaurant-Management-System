@@ -75,13 +75,30 @@ final class RestaurantToolsetTest extends TestCase
             'restaurant_tables', 'restaurant_table_get', 'restaurant_table_set', 'restaurant_table_status', 'restaurant_table_delete',
             'restaurant_menu', 'restaurant_order_open', 'restaurant_orders', 'restaurant_order_get', 'restaurant_order_status',
             'restaurant_order_add_item', 'restaurant_order_set_item_qty', 'restaurant_order_remove_item', 'restaurant_order_delete',
+            'restaurant_kitchen',
         ], $names);
     }
 
     public function test_a_read_only_token_sees_only_the_read_tools(): void
     {
         $names = array_column($this->toolset->definitions($this->principal('danmat.restaurant:read')), 'name');
-        self::assertSame(['restaurant_tables', 'restaurant_table_get', 'restaurant_menu', 'restaurant_orders', 'restaurant_order_get'], $names);
+        self::assertSame(['restaurant_tables', 'restaurant_table_get', 'restaurant_menu', 'restaurant_orders', 'restaurant_order_get', 'restaurant_kitchen'], $names);
+    }
+
+    public function test_the_kitchen_queue_lists_sent_and_preparing_tickets(): void
+    {
+        $write = $this->principal('danmat.restaurant:read', 'danmat.restaurant:write');
+        $tid   = $this->toolset->call('restaurant_table_set', ['label' => '5'], $write, $this->ctx)['table']['id'];
+        $oid   = $this->toolset->call('restaurant_order_open', ['table_id' => $tid], $write, $this->ctx)['order']['id'];
+        $this->toolset->call('restaurant_order_add_item', ['order_id' => $oid, 'name' => 'Fries', 'price' => '3', 'qty' => 1], $write, $this->ctx);
+
+        // Not in the kitchen while open.
+        self::assertSame(0, $this->toolset->call('restaurant_kitchen', [], $write, $this->ctx)['count']);
+
+        $this->toolset->call('restaurant_order_status', ['id' => $oid, 'status' => 'sent'], $write, $this->ctx);
+        $queue = $this->toolset->call('restaurant_kitchen', [], $write, $this->ctx);
+        self::assertSame(1, $queue['count']);
+        self::assertSame('Fries', $queue['tickets'][0]['items'][0]['name']);
     }
 
     public function test_an_order_can_be_run_end_to_end_over_mcp(): void

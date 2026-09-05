@@ -63,6 +63,13 @@ final class Guide
 
         A line snapshots the item's name and price when added, so editing the menu
         later never changes an existing order.
+
+        ## Kitchen
+
+        - `restaurant_kitchen` — the kitchen queue: orders in `sent`, `preparing` or
+          `ready`, oldest first, each with its items. Advance a ticket by setting its
+          status with `restaurant_order_status`: `sent` → `preparing` (started) →
+          `ready` (up for the pass). The floor then marks it `served`.
         MD;
     }
 }

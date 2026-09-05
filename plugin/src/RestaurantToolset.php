@@ -146,7 +146,22 @@ final class RestaurantToolset extends PluginToolset
                 'required'   => ['id'],
                 'properties' => ['id' => ['type' => 'integer', 'description' => 'The order id.']],
             ], $this->orderDelete(...)),
+
+            new PluginTool('kitchen', 'read', 'The kitchen queue: tickets in the kitchen (sent/preparing/ready), oldest first, each with its items. Advance one with order_status.', [
+                'type'       => 'object',
+                'properties' => new \stdClass(),
+            ], $this->kitchen(...)),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function kitchen(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $tickets = $this->orders->ticketsByStatus(['sent', 'preparing', 'ready']);
+        return ['tickets' => $tickets, 'count' => count($tickets)];
     }
 
     /**
