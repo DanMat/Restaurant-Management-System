@@ -26,7 +26,9 @@ collections. Zero Nimbus core change.
   menu (snapshotting name + price), quantities, workflow, server-computed totals,
   admin + MCP. Forced and consumes the new core content-read capability (ADR 0029),
   closing findings F1/A2.
-- ⬜ Kitchen display, Payment, Staff & roles, Reservations, Reports — next.
+- ✅ **Kitchen display** — a cook's screen (New → Preparing → Ready) advancing the
+  order workflow; capability-gated admin page, auto-refresh, mobile.
+- ⬜ Payment, Staff & roles, Reservations, Reports — next.
 
 ## Layout
 
