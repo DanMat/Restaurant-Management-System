@@ -141,6 +141,15 @@ final class RestaurantToolset extends PluginToolset
                 'properties' => ['item_id' => ['type' => 'integer', 'description' => 'The line item id.']],
             ], $this->orderRemoveItem(...)),
 
+            new PluginTool('order_pay', 'write', 'Take payment on an order and turn its table. The amount is the computed order total (never passed in); choose only the method. Closes the order.', [
+                'type'       => 'object',
+                'required'   => ['id', 'method'],
+                'properties' => [
+                    'id'     => ['type' => 'integer', 'description' => 'The order id.'],
+                    'method' => ['type' => 'string', 'enum' => Orders::PAYMENT_METHODS, 'description' => 'How it was paid: cash / card / other.'],
+                ],
+            ], $this->orderPay(...)),
+
             new PluginTool('order_delete', 'write', 'Delete an order and its line items.', [
                 'type'       => 'object',
                 'required'   => ['id'],
@@ -272,6 +281,18 @@ final class RestaurantToolset extends PluginToolset
     {
         $id = $this->requireInt($a, 'id');
         return ['ok' => true, 'deleted' => $this->orders->delete($id) > 0];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function orderPay(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $order = $this->orders->pay($this->requireInt($a, 'id'), (string) ($a['method'] ?? ''), $this->now());
+            return ['ok' => true, 'order' => $order];
+        });
     }
 
     /**

@@ -165,6 +165,44 @@ final class OrdersTest extends TestCase
         self::assertNull($this->orders->get($id));
     }
 
+    public function test_paying_charges_the_computed_total_closes_and_turns_the_table(): void
+    {
+        $t  = $this->table();
+        $id = $this->orders->open($t, self::NOW);
+        $this->orders->addItem($id, 101, null, null, 2, self::NOW); // 25.00
+        $this->orders->addItem($id, 102, null, null, 1, self::NOW); // 3.50
+
+        $settled = $this->orders->pay($id, 'card', self::NOW);
+
+        self::assertTrue($settled['paid']);
+        self::assertSame('closed', $settled['status']);
+        self::assertSame('28.50', $settled['amount_paid'], 'the amount is the computed total, not a caller value');
+        self::assertSame('card', $settled['payment_method']);
+        self::assertSame(self::NOW, $settled['paid_at']);
+        self::assertSame('dirty', $this->tables->get($t)['status'], 'the table is turned for bussing');
+    }
+
+    public function test_a_bad_payment_method_is_rejected(): void
+    {
+        $id = $this->orders->open($this->table(), self::NOW);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->orders->pay($id, 'crypto', self::NOW);
+    }
+
+    public function test_paying_a_missing_order_is_rejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->orders->pay(424242, 'cash', self::NOW);
+    }
+
+    public function test_an_order_cannot_be_paid_twice(): void
+    {
+        $id = $this->orders->open($this->table(), self::NOW);
+        $this->orders->pay($id, 'cash', self::NOW);
+        $this->expectException(\InvalidArgumentException::class);
+        $this->orders->pay($id, 'cash', self::NOW);
+    }
+
     public function test_tickets_by_status_returns_the_kitchen_queue_oldest_first(): void
     {
         // Two orders in the kitchen (sent, preparing), one still open, one served.

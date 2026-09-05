@@ -59,6 +59,10 @@ final class Guide
           manual line, plus a `qty`.
         - `restaurant_order_set_item_qty` — change a line's quantity (0 removes it).
         - `restaurant_order_remove_item` — remove a line.
+        - `restaurant_order_pay` — take payment and turn the table. You choose only the
+          `method` (`cash`/`card`/`other`); the amount charged is the computed order
+          total, never passed in. This marks the order paid, closes it, and sets its
+          table `dirty` for bussing (the floor then cleans it back to `open`).
         - `restaurant_order_delete` — delete an order and its lines.
 
         A line snapshots the item's name and price when added, so editing the menu

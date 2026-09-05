@@ -187,6 +187,21 @@ final class RestaurantPlugin implements Plugin
             return Response::redirect($backToOrder($r) . 'ok=removed');
         });
 
+        $context->adminPages()->action('restaurant-orders', 'order-pay', static function (Request $r) use ($orders, $backToOrder): Response {
+            $base = $backToOrder($r);
+            $idIn = trim((string) ($r->input('id') ?? ''));
+            if ($idIn === '' || !ctype_digit($idIn)) {
+                return Response::redirect($base . 'err=invalid');
+            }
+            try {
+                // Only the method comes from the request — the amount is computed.
+                $orders->pay((int) $idIn, (string) ($r->input('method') ?? ''), date('Y-m-d H:i:s'));
+                return Response::redirect($base . 'ok=paid');
+            } catch (\Throwable) {
+                return Response::redirect($base . 'err=invalid');
+            }
+        });
+
         $context->adminPages()->action('restaurant-orders', 'order-delete', static function (Request $r) use ($orders): Response {
             $idIn = trim((string) ($r->input('id') ?? ''));
             if ($idIn !== '' && ctype_digit($idIn)) {

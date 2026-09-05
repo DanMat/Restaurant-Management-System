@@ -26,6 +26,9 @@ final class Orders
     /** @var list<string> the order workflow, in order */
     public const STATUSES = ['open', 'sent', 'preparing', 'ready', 'served', 'closed'];
 
+    /** @var list<string> how a bill can be settled */
+    public const PAYMENT_METHODS = ['cash', 'card', 'other'];
+
     private const MAX_NAME = 200;
     private const MAX_QTY  = 999;
 
@@ -63,12 +66,12 @@ final class Orders
     /**
      * One order with its line items and computed total, or null.
      *
-     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}|null
+     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}|null
      */
     public function get(int $id): ?array
     {
         $row = $this->storage()->selectOne(
-            'SELECT o.id, o.table_id, o.status, o.paid, o.created_at, o.updated_at, t.label AS table_label
+            'SELECT o.id, o.table_id, o.status, o.paid, o.amount_paid, o.payment_method, o.paid_at, o.created_at, o.updated_at, t.label AS table_label
              FROM ' . Schema::ORDER . ' o LEFT JOIN ' . Schema::TABLE . ' t ON t.id = o.table_id
              WHERE o.id = :id',
             ['id' => $id],
@@ -85,7 +88,7 @@ final class Orders
      * table, each with its computed total and item count (no line items — get() has
      * those). Most-recently-updated first.
      *
-     * @return list<array{id:int,table_id:int,table_label:?string,status:string,paid:bool,item_count:int,total:string,created_at:string,updated_at:string}>
+     * @return list<array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,item_count:int,total:string,created_at:string,updated_at:string}>
      */
     public function all(?string $status = null, ?int $tableId = null): array
     {
@@ -100,7 +103,7 @@ final class Orders
             $params['table'] = $tableId;
         }
 
-        $sql = 'SELECT o.id, o.table_id, o.status, o.paid, o.created_at, o.updated_at, t.label AS table_label,
+        $sql = 'SELECT o.id, o.table_id, o.status, o.paid, o.amount_paid, o.payment_method, o.created_at, o.updated_at, t.label AS table_label,
                        (SELECT COALESCE(SUM(i.unit_price * i.qty), 0) FROM ' . Schema::ORDER_ITEM . ' i WHERE i.order_id = o.id) AS total,
                        (SELECT COUNT(*) FROM ' . Schema::ORDER_ITEM . ' i WHERE i.order_id = o.id) AS item_count
                 FROM ' . Schema::ORDER . ' o LEFT JOIN ' . Schema::TABLE . ' t ON t.id = o.table_id';
@@ -111,15 +114,17 @@ final class Orders
 
         return array_map(function (array $r): array {
             return [
-                'id'          => (int) $r['id'],
-                'table_id'    => (int) $r['table_id'],
-                'table_label' => ($r['table_label'] ?? null) === null ? null : (string) $r['table_label'],
-                'status'      => (string) $r['status'],
-                'paid'        => (bool) $r['paid'],
-                'item_count'  => (int) $r['item_count'],
-                'total'       => number_format((float) $r['total'], 2, '.', ''),
-                'created_at'  => (string) $r['created_at'],
-                'updated_at'  => (string) $r['updated_at'],
+                'id'             => (int) $r['id'],
+                'table_id'       => (int) $r['table_id'],
+                'table_label'    => ($r['table_label'] ?? null) === null ? null : (string) $r['table_label'],
+                'status'         => (string) $r['status'],
+                'paid'           => (bool) $r['paid'],
+                'amount_paid'    => ($r['amount_paid'] ?? null) === null ? null : number_format((float) $r['amount_paid'], 2, '.', ''),
+                'payment_method' => ($r['payment_method'] ?? null) === null ? null : (string) $r['payment_method'],
+                'item_count'     => (int) $r['item_count'],
+                'total'          => number_format((float) $r['total'], 2, '.', ''),
+                'created_at'     => (string) $r['created_at'],
+                'updated_at'     => (string) $r['updated_at'],
             ];
         }, $this->storage()->select($sql, $params));
     }
@@ -183,6 +188,44 @@ final class Orders
                 'updated_at'  => (string) $r['updated_at'],
             ];
         }, $orders);
+    }
+
+    /**
+     * Take payment on an order and turn its table. The **amount is computed
+     * server-side** from the order's line items — never passed in, so a client can
+     * never dictate what is charged; only the `method` (an allow-list) is chosen.
+     * Marks the order paid + closed, and sets its table `dirty` for bussing — all in
+     * one transaction. Returns the settled order.
+     *
+     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
+     */
+    public function pay(int $orderId, string $method, string $now): array
+    {
+        if (!in_array($method, self::PAYMENT_METHODS, true)) {
+            throw new \InvalidArgumentException('"method" must be one of: ' . implode(', ', self::PAYMENT_METHODS) . '.');
+        }
+        $order = $this->get($orderId);
+        if ($order === null) {
+            throw new \InvalidArgumentException("No order with id {$orderId}.");
+        }
+        if ($order['paid']) {
+            throw new \InvalidArgumentException('That order is already paid.');
+        }
+
+        $amount = $order['total']; // computed from the lines, authoritative
+
+        $this->storage()->transaction(function () use ($orderId, $order, $amount, $method, $now): void {
+            $this->storage()->execute(
+                'UPDATE ' . Schema::ORDER . ' SET paid = 1, amount_paid = :amount, payment_method = :method, paid_at = :now, status = :status, updated_at = :now2 WHERE id = :id',
+                ['amount' => $amount, 'method' => $method, 'now' => $now, 'status' => 'closed', 'now2' => $now, 'id' => $orderId],
+            );
+            // Turn the table over: it now needs bussing before the next party.
+            $this->tables->setStatus($order['table_id'], 'dirty', $now);
+        });
+
+        $settled = $this->get($orderId);
+        assert($settled !== null);
+        return $settled;
     }
 
     /** Move an order to an allow-listed workflow status. Returns rows changed. */
@@ -298,7 +341,7 @@ final class Orders
     /**
      * @param array<string,mixed> $row
      * @param list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}> $items
-     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
+     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
      */
     private function hydrate(array $row, array $items): array
     {
@@ -307,15 +350,18 @@ final class Orders
             $total += (float) $item['line_total'];
         }
         return [
-            'id'          => (int) $row['id'],
-            'table_id'    => (int) $row['table_id'],
-            'table_label' => ($row['table_label'] ?? null) === null ? null : (string) $row['table_label'],
-            'status'      => (string) $row['status'],
-            'paid'        => (bool) $row['paid'],
-            'items'       => $items,
-            'total'       => number_format($total, 2, '.', ''),
-            'created_at'  => (string) $row['created_at'],
-            'updated_at'  => (string) $row['updated_at'],
+            'id'             => (int) $row['id'],
+            'table_id'       => (int) $row['table_id'],
+            'table_label'    => ($row['table_label'] ?? null) === null ? null : (string) $row['table_label'],
+            'status'         => (string) $row['status'],
+            'paid'           => (bool) $row['paid'],
+            'amount_paid'    => ($row['amount_paid'] ?? null) === null ? null : number_format((float) $row['amount_paid'], 2, '.', ''),
+            'payment_method' => ($row['payment_method'] ?? null) === null ? null : (string) $row['payment_method'],
+            'paid_at'        => ($row['paid_at'] ?? null) === null ? null : (string) $row['paid_at'],
+            'items'          => $items,
+            'total'          => number_format($total, 2, '.', ''),
+            'created_at'     => (string) $row['created_at'],
+            'updated_at'     => (string) $row['updated_at'],
         ];
     }
 
