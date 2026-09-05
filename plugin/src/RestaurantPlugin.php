@@ -19,8 +19,8 @@ use Nimbus\Plugin\PluginStorage;
  * (ADR 0015), on capability-gated admin pages (ADR 0020) and MCP tools (ADR 0016).
  *
  * Slice 1: the floor (tables). Slice 2: orders + line items (menu read via the core
- * content-read capability, ADR 0029). Kitchen, payment, reservations and reports
- * follow, each as its own slice.
+ * content-read capability, ADR 0029). Slice 3: the kitchen display. Payment,
+ * reservations and reports follow, each as its own slice.
  */
 final class RestaurantPlugin implements Plugin
 {
@@ -193,6 +193,28 @@ final class RestaurantPlugin implements Plugin
                 $orders->delete((int) $idIn);
             }
             return Response::redirect('/admin/restaurant-orders?ok=deleted');
+        });
+
+        // Kitchen display — the cook's screen. A capability-gated admin page (not a
+        // public route), read-mostly with an advance action per ticket.
+        $context->adminPages()->register(
+            'restaurant-kitchen',
+            'Kitchen',
+            '👨‍🍳',
+            static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new KitchenAdmin($orders))->render($csrf, $r->query('ok') ?? $r->query('err'), $nonce),
+            self::ID . ':write',
+        );
+
+        $context->adminPages()->action('restaurant-kitchen', 'advance', static function (Request $r) use ($orders): Response {
+            $idIn = trim((string) ($r->input('id') ?? ''));
+            if ($idIn !== '' && ctype_digit($idIn)) {
+                try {
+                    $orders->setStatus((int) $idIn, (string) ($r->input('status') ?? ''), date('Y-m-d H:i:s'));
+                } catch (\Throwable) {
+                    return Response::redirect('/admin/restaurant-kitchen?err=invalid');
+                }
+            }
+            return Response::redirect('/admin/restaurant-kitchen?ok=advanced');
         });
 
         // Teach an MCP agent how to drive the restaurant (ADR 0013).

@@ -124,6 +124,67 @@ final class Orders
         }, $this->storage()->select($sql, $params));
     }
 
+    /**
+     * Orders currently in the given (allow-listed) statuses, each with its line
+     * items — the kitchen queue. Oldest first (FIFO). Batched into two bound queries
+     * (orders, then all their items), never N+1. An unknown status is ignored.
+     *
+     * @param list<string> $statuses
+     * @return list<array{id:int,table_id:int,table_label:?string,status:string,items:list<array{name:string,qty:int}>,created_at:string,updated_at:string}>
+     */
+    public function ticketsByStatus(array $statuses): array
+    {
+        $valid = array_values(array_filter($statuses, static fn (string $s): bool => in_array($s, self::STATUSES, true)));
+        if ($valid === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $params       = [];
+        foreach ($valid as $i => $status) {
+            $placeholders[]   = ':s' . $i;
+            $params['s' . $i] = $status;
+        }
+        $orders = $this->storage()->select(
+            'SELECT o.id, o.table_id, o.status, o.created_at, o.updated_at, t.label AS table_label
+             FROM ' . Schema::ORDER . ' o LEFT JOIN ' . Schema::TABLE . ' t ON t.id = o.table_id
+             WHERE o.status IN (' . implode(', ', $placeholders) . ') ORDER BY o.updated_at ASC, o.id ASC',
+            $params,
+        );
+        if ($orders === []) {
+            return [];
+        }
+
+        $ids       = array_map(static fn (array $r): int => (int) $r['id'], $orders);
+        $itemPh    = [];
+        $itemParam = [];
+        foreach ($ids as $i => $oid) {
+            $itemPh[]           = ':o' . $i;
+            $itemParam['o' . $i] = $oid;
+        }
+        $itemRows = $this->storage()->select(
+            'SELECT order_id, name, qty FROM ' . Schema::ORDER_ITEM . ' WHERE order_id IN (' . implode(', ', $itemPh) . ') ORDER BY id',
+            $itemParam,
+        );
+        $byOrder = [];
+        foreach ($itemRows as $r) {
+            $byOrder[(int) $r['order_id']][] = ['name' => (string) $r['name'], 'qty' => (int) $r['qty']];
+        }
+
+        return array_map(static function (array $r) use ($byOrder): array {
+            $id = (int) $r['id'];
+            return [
+                'id'          => $id,
+                'table_id'    => (int) $r['table_id'],
+                'table_label' => ($r['table_label'] ?? null) === null ? null : (string) $r['table_label'],
+                'status'      => (string) $r['status'],
+                'items'       => $byOrder[$id] ?? [],
+                'created_at'  => (string) $r['created_at'],
+                'updated_at'  => (string) $r['updated_at'],
+            ];
+        }, $orders);
+    }
+
     /** Move an order to an allow-listed workflow status. Returns rows changed. */
     public function setStatus(int $id, string $status, string $now): int
     {
