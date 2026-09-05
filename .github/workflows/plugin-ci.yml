@@ -1,0 +1,62 @@
+name: Plugin CI
+
+# The restaurant plugin is co-located in this repo under plugin/. This runs its
+# checks (composer validate, cs-fixer, PHPStan, phpunit) against a MySQL service,
+# exactly as the official Nimbus plugins do in their own repos.
+
+on:
+  push:
+    branches: [nimbus-rebuild, 'slice/**']
+    paths: ['plugin/**', '.github/workflows/plugin-ci.yml']
+  pull_request:
+    paths: ['plugin/**', '.github/workflows/plugin-ci.yml']
+
+defaults:
+  run:
+    working-directory: plugin
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: nimbus_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, mbstring
+          coverage: none
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Formatting
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff
+
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+
+      - name: Run tests
+        run: vendor/bin/phpunit
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: '3306'

@@ -1,0 +1,65 @@
+{
+    "name": "danmat/restaurant",
+    "description": "The Restaurant Management System as a NimbusCMS plugin: tables, orders, kitchen, reservations and reports — capability-gated and agent-drivable over MCP. The application's own plugin, co-located in its repository.",
+    "type": "nimbuscms-plugin",
+    "keywords": [
+        "nimbuscms",
+        "nimbuscms-plugin",
+        "restaurant",
+        "pos",
+        "cms"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "DanMat"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "ext-json": "*",
+        "nimbuscms/nimbus": "dev-main"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "phpstan/phpstan": "^2.2",
+        "phpunit/phpunit": "^11.0"
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/NimbusCMS/nimbus"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "DanMat\\Restaurant\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "DanMat\\Restaurant\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "nimbus": {
+            "id": "danmat.restaurant",
+            "plugin": "DanMat\\Restaurant\\RestaurantPlugin"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse --memory-limit=512M",
+        "check": [
+            "@analyse",
+            "@test"
+        ],
+        "format": "php-cs-fixer fix",
+        "format:check": "php-cs-fixer fix --dry-run --diff"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
