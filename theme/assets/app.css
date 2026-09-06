@@ -1,0 +1,107 @@
+/*
+ * RAS — the public face of the Restaurant Automation System.
+ * A single, committed dark restaurant look (uplifted from the original #222),
+ * with a warm gold accent and an elegant printed-menu feel.
+ */
+
+:root {
+  --ground: #1a1c20;
+  --surface: #23262c;
+  --text: #ecedee;
+  --muted: #9aa0a8;
+  --gold: #d4a017;
+  --gold-bright: #e7b62f;
+  --rule: rgba(255, 255, 255, 0.09);
+  --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  font-size: 17px;
+}
+
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--gold-bright); }
+
+img { max-width: 100%; height: auto; }
+
+.wrap { width: 100%; max-width: 900px; margin: 0 auto; padding: 0 1.25rem; }
+.measure { max-width: 40rem; }
+
+.skip-link {
+  position: absolute; left: -999px; top: 0;
+  background: var(--gold); color: #1a1c20; padding: .6rem 1rem; border-radius: 6px;
+}
+.skip-link:focus { left: 1rem; top: 1rem; z-index: 10; }
+
+/* Header */
+.site-header {
+  position: sticky; top: 0; z-index: 5;
+  background: rgba(20, 22, 26, 0.92);
+  backdrop-filter: saturate(140%) blur(6px);
+  border-bottom: 1px solid var(--rule);
+}
+.header-inner { display: flex; align-items: center; justify-content: space-between; min-height: 64px; gap: 1rem; }
+.brand { display: inline-flex; align-items: center; gap: .7rem; color: var(--text); }
+.brand:hover { color: var(--text); }
+.brand-mark {
+  font-weight: 800; letter-spacing: .12em; font-size: .82rem;
+  background: var(--gold); color: #1a1c20;
+  padding: .3rem .5rem; border-radius: 5px;
+}
+.brand-name { font-family: var(--serif); font-size: 1.15rem; letter-spacing: .01em; }
+.site-nav a { font-size: .95rem; letter-spacing: .04em; text-transform: uppercase; }
+
+/* Menu page */
+.menu-page { padding: 3rem 0 4rem; }
+.menu-head { text-align: center; margin-bottom: 2.75rem; }
+.eyebrow {
+  margin: 0 0 .6rem; font-size: .72rem; font-weight: 700;
+  letter-spacing: .22em; text-transform: uppercase; color: var(--gold);
+}
+.menu-head h1 { font-family: var(--serif); font-size: 2.6rem; font-weight: 400; margin: 0 0 .5rem; }
+.lede { color: var(--muted); margin: 0; }
+
+.menu-group { margin: 0 0 2.75rem; }
+.menu-group h2 {
+  font-family: var(--serif); font-weight: 400; font-size: 1.5rem;
+  margin: 0 0 1.1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--rule);
+  color: var(--text);
+}
+.menu-list { list-style: none; margin: 0; padding: 0; }
+.menu-item { padding: .7rem 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.05); }
+.menu-item:last-child { border-bottom: 0; }
+.menu-row { display: flex; align-items: baseline; gap: .35rem; }
+.menu-name { font-weight: 500; }
+.menu-leader { flex: 1; border-bottom: 1px dotted rgba(255, 255, 255, 0.28); transform: translateY(-.25rem); }
+.menu-price { font-variant-numeric: tabular-nums; color: var(--gold); font-weight: 600; white-space: nowrap; }
+.menu-desc { margin: .3rem 0 0; color: var(--muted); font-size: .92rem; max-width: 46ch; }
+.empty { color: var(--muted); text-align: center; padding: 2rem 0; }
+
+/* Generic page + 404 */
+.page { padding: 3rem 0 4rem; }
+.page h1 { font-family: var(--serif); font-weight: 400; font-size: 2.2rem; margin: 0 0 1rem; }
+.prose { color: var(--text); }
+.notfound { text-align: center; }
+
+/* Footer */
+.site-footer { border-top: 1px solid var(--rule); padding: 2.5rem 0; margin-top: 2rem; }
+.footer-inner { text-align: center; }
+.footer-name { font-family: var(--serif); font-size: 1.15rem; margin: 0 0 .3rem; }
+.footer-meta { color: var(--muted); margin: 0 0 .6rem; }
+.footer-fine { color: var(--muted); font-size: .8rem; margin: 0; opacity: .8; }
+
+@media (max-width: 40rem) {
+  .menu-head h1 { font-size: 2.1rem; }
+  .brand-name { display: none; }
+  body { font-size: 16px; }
+}

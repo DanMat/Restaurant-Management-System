@@ -1,0 +1,16 @@
+{
+    "name": "RAS",
+    "version": "0.1.0",
+    "description": "The public face of the Restaurant Automation System — a dark, elegant guest menu carrying the RAS identity. Plain PHP templates, one stylesheet, no build step.",
+    "nav": ["menu_items"],
+    "templates": {
+        "layout": "HTML shell; includes header and footer.",
+        "header": "Site header with the RAS wordmark and the menu link.",
+        "footer": "Footer with hours and contact.",
+        "collection-menu_items": "The guest menu (the `menu_items` collection), grouped by category with prices.",
+        "entry": "A single info page.",
+        "404": "Themed not-found page."
+    },
+    "specialization": "collection-menu_items renders the `menu_items` collection provisioned by the restaurant app — each item has a `price` number and a `category` relation (expanded). Grouped by category name, priced, with dotted leaders.",
+    "assets": "Files under assets/ are served at /theme/assets/<path> (e.g. assets/app.css -> /theme/assets/app.css)."
+}
