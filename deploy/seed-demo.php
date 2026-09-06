@@ -40,6 +40,7 @@ use Nimbus\Content\FieldTypeRegistry;
 use Nimbus\Content\RelationRepository;
 use Nimbus\Database\Connection;
 use Nimbus\Plugin\PluginStorage;
+use Nimbus\Settings\SettingsRepository;
 use Nimbus\Support\EventDispatcher;
 use NimbusCMS\Crm\Contacts;
 
@@ -139,6 +140,17 @@ foreach ($menu as [$name, $price, $cat, $desc]) {
     ], '2024-01-01 00:00:00'), null, null);
 }
 echo "  menu: " . count($catIds) . " categories, " . count($menu) . " items\n";
+
+// --- 3b) Site settings: brand + render the menu at the root ----------------
+// These are DB settings (nb_settings), which shadow config/site.php at runtime —
+// so the guest-facing root ("/") shows the branded menu, not the bare Nimbus
+// placeholder. Seeded here so a from-scratch rebuild matches the golden restore.
+(new SettingsRepository($db))->setMany([
+    'site.title'       => 'The Copper Table',
+    'site.description' => 'A restaurant running on the Restaurant Automation System — a live NimbusCMS demo.',
+    'site.home'        => 'menu_items',
+]);
+echo "  settings: home -> menu_items, brand -> The Copper Table\n";
 
 // --- 4) Live floor / orders / reservations ---------------------------------
 $storage      = static fn (): PluginStorage => new PluginStorage($db);
