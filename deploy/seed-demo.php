@@ -56,7 +56,7 @@ $now = date('Y-m-d H:i:s');
 // The one public demo password. These accounts exist to be logged into by anyone
 // exploring the demo, and the site resets hourly — so this is intentionally not a
 // secret.
-$demoPassword = 'demopass';
+$demoPassword = 'restaurant-demo';
 
 echo "RAS demo seed…\n";
 

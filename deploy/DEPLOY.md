@@ -68,7 +68,7 @@ A cron on the box re-runs the reset each hour:
 
 ## The demo logins (public, on purpose)
 
-Every staff account uses the password **`demopass`**. Each is a Nimbus user in a
+Every staff account uses the password **`restaurant-demo`**. Each is a Nimbus user in a
 capability role, so each sees only what their role allows:
 
 | Login | Role | Sees | Can it take payment? Open a guest's CRM record? |

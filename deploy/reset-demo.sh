@@ -12,7 +12,7 @@ set -eu
 : "${DB_USER:=nimbus}"
 : "${DB_PASS:=}"
 : "${ADMIN_EMAIL:=admin@ras.demo}"
-: "${ADMIN_PASSWORD:=demopass}"
+: "${ADMIN_PASSWORD:=restaurant-demo}"
 
 echo "[ras-reset] dropping and recreating ${DB_NAME}…"
 mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" \
