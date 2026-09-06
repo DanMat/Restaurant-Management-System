@@ -30,7 +30,10 @@ collections. Zero Nimbus core change.
   order workflow; capability-gated admin page, auto-refresh, mobile.
 - ✅ **Payment & turn** — settle a bill (server-computed amount, method), close the
   order, and turn the table (→ dirty → clean → open). The service loop is closed.
-- ⬜ Staff & roles, Reservations, Reports — next.
+- ✅ **Staff & roles** — fine-grained capabilities (floor / kitchen / manage) gate
+  the terminals, so a cook can't take payment and a waiter can't be handed the
+  books. Forced the core capability behind ADR 0030 (closing F4).
+- ⬜ Reservations, Reports — next.
 
 ## Layout
 

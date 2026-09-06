@@ -30,7 +30,7 @@ logic landing in Nimbus core.**
 | **Payment & turn** | ✅ done (plugin) | No — server-computed amount on the order |
 | Reservations | ⬜ not started | tbd (CRM guest link + PII gate) |
 | Reports | ⬜ not started | likely: dashboard widgets / aggregation |
-| Staff & roles | ⬜ not started | **F4 capability now in core (ADR 0030)** — slice consumes it |
+| **Staff & roles** | ✅ done (plugin) | **Yes — fine-grained plugin capabilities (ADR 0030 in core), which closed F4** |
 
 ---
 
