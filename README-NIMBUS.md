@@ -35,7 +35,13 @@ collections. Zero Nimbus core change.
   books. Forced the core capability behind ADR 0030 (closing F4).
 - ✅ **Reservations** — a booking book that links guests to their **CRM** records by
   id, without the restaurant ever reading CRM data (the PII boundary held).
-- ⬜ Reports, then theme + deploy — next.
+- ✅ **Reports** — a manager dashboard (revenue today / 7 days, active orders, top
+  items), read-only and gated on `:manage`.
+- ⬜ Theme + public menu + deploy — the finale.
+
+**Every operational vertical of the legacy system is now rebuilt on Nimbus**, and
+the rebuild drove two reusable core capabilities (ADR 0029 content-read, ADR 0030
+fine-grained capabilities) — with no restaurant-specific logic in Nimbus core.
 
 ## Layout
 
