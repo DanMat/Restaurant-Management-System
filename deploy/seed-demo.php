@@ -16,7 +16,15 @@ declare(strict_types=1);
  *   php deploy/seed-demo.php
  */
 
-require '/var/www/html/vendor/autoload.php';
+// The Nimbus app root differs by image (/app on the platform image); find autoload.
+$__autoload = null;
+foreach (['/app/vendor/autoload.php', __DIR__ . '/../vendor/autoload.php', '/var/www/html/vendor/autoload.php'] as $__p) {
+    if (is_file($__p)) {
+        $__autoload = $__p;
+        break;
+    }
+}
+require $__autoload ?? throw new RuntimeException('Could not locate vendor/autoload.php');
 
 use DanMat\Restaurant\Orders;
 use DanMat\Restaurant\Reservations;
