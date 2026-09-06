@@ -30,7 +30,7 @@ logic landing in Nimbus core.**
 | **Payment & turn** | ✅ done (plugin) | No — server-computed amount on the order |
 | Reservations | ⬜ not started | tbd (CRM guest link + PII gate) |
 | Reports | ⬜ not started | likely: dashboard widgets / aggregation |
-| Staff & roles | ⬜ not started | **yes — F4**: fine-grained plugin capabilities/roles (confirmed gap) |
+| Staff & roles | ⬜ not started | **F4 capability now in core (ADR 0030)** — slice consumes it |
 
 ---
 
@@ -119,7 +119,17 @@ separately for a deliberate choice rather than an accidental one.
 
 </details>
 
-### F4 — Fine-grained, plugin-defined capabilities / roles
+### F4 — Fine-grained, plugin-defined capabilities — ✅ RESOLVED (NimbusCMS ADR 0030)
+
+**Resolved 2026-09-05** ([NimbusCMS PR #210](https://github.com/NimbusCMS/nimbus/pull/210)):
+a plugin may now declare **any action** on its own capability (not just
+read/write) and gate admin pages, actions and MCP tools on it — each an
+independent, wildcard-immune grant. Only two read/write caps had to lift; the
+authorization model was already general. The **Staff & roles** slice will re-gate
+the restaurant's terminals on `floor` / `kitchen` / `manage`. Original finding
+kept below.
+
+<details><summary>Original F4 finding (resolved by ADR 0030)</summary>
 
 Surfaced by the **design review**, before code. Stock Nimbus gives a plugin
 **one** wildcard-immune capability (its own id) and gates admin pages/actions on
@@ -141,6 +151,8 @@ manager-checked in code).
 
 **Severity:** high for the **Staff & roles** vertical (its blocker); until then,
 non-blocking. This is the rebuild's most likely *second* core PR after F1.
+
+</details>
 
 ### F3 — Numbers drop trailing decimals (`8.00` → `8`)
 
