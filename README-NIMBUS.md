@@ -37,7 +37,11 @@ collections. Zero Nimbus core change.
   id, without the restaurant ever reading CRM data (the PII boundary held).
 - ✅ **Reports** — a manager dashboard (revenue today / 7 days, active orders, top
   items), read-only and gated on `:manage`.
-- ⬜ Theme + public menu + deploy — the finale.
+- ✅ **RAS design uplift** — the staff terminals wear the original "Restaurant
+  Automation System" identity, uplifted: the signature **circular table tokens** are
+  back on the Floor (modernized status colours), with a shared RAS header across
+  every terminal.
+- ⬜ Public menu theme, then deploy — the rest of the finale.
 
 **Every operational vertical of the legacy system is now rebuilt on Nimbus**, and
 the rebuild drove two reusable core capabilities (ADR 0029 content-read, ADR 0030
