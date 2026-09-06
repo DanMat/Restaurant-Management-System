@@ -9,6 +9,7 @@ use Nimbus\Http\Response;
 use Nimbus\Plugin\Plugin;
 use Nimbus\Plugin\PluginContext;
 use Nimbus\Plugin\PluginStorage;
+use Nimbus\Site\PageView;
 
 /**
  * The Restaurant Management System, as a NimbusCMS plugin — the application's own
@@ -61,6 +62,62 @@ final class RestaurantPlugin implements Plugin
         // a handful of menu items via the view-data hinge (ADR 0027). Data only,
         // home page only, visitor-independent (cache-safe); the theme escapes it.
         $context->viewData()->register(new HomeViewData($menu));
+
+        // --- Online ordering (Slice C2) -------------------------------------
+        // A public, themed order page (ADR 0023) + a public POST action (ADR 0017)
+        // that places a table-less order into the kitchen with a SIMULATED payment.
+        // Public write surface: prices are snapshotted server-side (never trusted),
+        // the checkout is a labelled demo (no real money/card), and the endpoint is
+        // guarded by a honeypot + per-IP throttle + order-size caps.
+        $rate = new RateLimiter($storage);
+
+        $context->pages()->register('order', static function (Request $r) use ($menu, $orders): PageView {
+            // Confirmation: /order?placed=<id>&t=<token> — token-gated, non-enumerable.
+            $placed = trim((string) ($r->query('placed') ?? ''));
+            $token  = (string) ($r->query('t') ?? '');
+            if ($placed !== '' && ctype_digit($placed)) {
+                $order = $orders->onlineForConfirmation((int) $placed, $token);
+                if ($order !== null) {
+                    return new PageView('order-confirmed', ['order' => $order], ['title' => 'Order confirmed'], 200, true);
+                }
+            }
+            return new PageView('order', [
+                'items' => $menu->items(),
+                'error' => (string) ($r->query('err') ?? ''),
+            ], ['title' => 'Order online']);
+        }, __DIR__ . '/../templates');
+
+        $context->routes()->post('restaurant', '/order', static function (Request $r) use ($orders, $rate): Response {
+            // Honeypot: a hidden field only a bot fills — quietly bounce it.
+            if (trim((string) ($r->input('website') ?? '')) !== '') {
+                return Response::redirect('/order?err=try_again');
+            }
+            $now = date('Y-m-d H:i:s');
+            if (!$rate->allow($r->ip(), $now)) {
+                return Response::redirect('/order?err=slow_down');
+            }
+            $rawQty = $r->all()['qty'] ?? [];
+            $cart   = [];
+            if (is_array($rawQty)) {
+                foreach ($rawQty as $mid => $q) {
+                    $mid = (int) $mid;
+                    $q   = (int) $q;
+                    if ($mid > 0 && $q > 0) {
+                        $cart[] = ['menu_item_id' => $mid, 'qty' => $q];
+                    }
+                }
+            }
+            try {
+                $order = $orders->placeOnline($cart, (string) ($r->input('name') ?? ''), (string) ($r->input('phone') ?? ''), $now);
+                $token = (string) $orders->confirmToken($order['id']);
+                return Response::redirect('/order?placed=' . $order['id'] . '&t=' . urlencode($token));
+            } catch (\InvalidArgumentException $e) {
+                $code = str_contains($e->getMessage(), 'empty') ? 'empty' : 'invalid';
+                return Response::redirect('/order?err=' . $code);
+            } catch (\Throwable) {
+                return Response::redirect('/order?err=invalid');
+            }
+        });
 
         // The floor board. A staff terminal is a capability-gated ADMIN PAGE, never a
         // public plugin route (routes carry no auth/CSRF). Gated on :write; the handler

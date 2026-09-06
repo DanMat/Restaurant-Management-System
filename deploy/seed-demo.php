@@ -26,6 +26,7 @@ foreach (['/app/vendor/autoload.php', __DIR__ . '/../vendor/autoload.php', '/var
 }
 require $__autoload ?? throw new RuntimeException('Could not locate vendor/autoload.php');
 
+use DanMat\Restaurant\Menu;
 use DanMat\Restaurant\Orders;
 use DanMat\Restaurant\Reservations;
 use DanMat\Restaurant\Tables;
@@ -33,6 +34,7 @@ use Nimbus\Auth\Password;
 use Nimbus\Auth\RoleRepository;
 use Nimbus\Content\CollectionRepository;
 use Nimbus\Content\CollectionService;
+use Nimbus\Content\ContentReader;
 use Nimbus\Content\EntryInput;
 use Nimbus\Content\EntryRepository;
 use Nimbus\Content\EntryService;
@@ -188,7 +190,10 @@ echo "  settings: home -> home, brand -> The Copper Table\n";
 $storage      = static fn (): PluginStorage => new PluginStorage($db);
 $tables       = new Tables($storage);
 $reservations = new Reservations($storage, $tables);
-$orders       = new Orders($storage, $tables, static fn (int $id): ?array => null);
+// A menu-backed snapshot so online orders (placeOnline) can look items up by id;
+// the manual dine-in lines below pass name+price directly and don't use it.
+$menu         = new Menu(static fn (): ContentReader => new ContentReader($db, new FieldTypeRegistry()));
+$orders       = new Orders($storage, $tables, static fn (int $id): ?array => $menu->snapshot($id));
 
 $t = [];
 foreach ([['1', 2], ['2', 4], ['3', 4], ['4', 2], ['5', 6], ['6', 2], ['Patio 1', 4], ['Patio 2', 4]] as [$label, $seats]) {
@@ -215,6 +220,23 @@ $paid2 = $orders->open($t['Patio 1'], $now);
 $orders->addItem($paid2, null, 'Miso Soup', '3.50', 3, $now);
 $orders->pay($paid2, 'cash', $now);
 
+// A takeaway order placed online (simulated checkout) — it lands in the kitchen
+// queue as a "New" ticket labelled by the guest, next to the dine-in tickets. Pick
+// two real menu items by id from the live menu so the snapshot resolves.
+$byName = [];
+foreach ($menu->items() as $mi) {
+    $byName[$mi['name']] = $mi['id'];
+}
+$onlineCart = [];
+foreach (['Salsa Chicken' => 1, 'Guacamole' => 2] as $dish => $qty) {
+    if (isset($byName[$dish])) {
+        $onlineCart[] = ['menu_item_id' => $byName[$dish], 'qty' => $qty];
+    }
+}
+if ($onlineCart !== []) {
+    $orders->placeOnline($onlineCart, 'Grace Hopper', '555-0148', $now);
+}
+
 // A guest in the CRM, and a reservation linked to them — floor staff see the
 // booking; only the manager (crm:read) can open the guest record.
 $crm       = new Contacts($storage);
@@ -222,5 +244,5 @@ $contactId = $crm->save(null, ['first_name' => 'Ada', 'last_name' => 'Lovelace',
 $reservations->save(null, ['party_name' => 'Lovelace', 'party_size' => '4', 'reserved_at' => date('Y-m-d 19:30:00'), 'table_id' => (string) $t['5'], 'contact_id' => (string) $contactId, 'notes' => 'Window seat.'], $now);
 $reservations->save(null, ['party_name' => 'Turing', 'party_size' => '2', 'reserved_at' => date('Y-m-d 20:00:00')], $now);
 
-echo "  floor: 8 tables (2 occupied, 2 dirty/just-paid, 1 reserved, 3 open), 2 open orders, 2 paid, 2 reservations, 1 CRM guest\n";
+echo "  floor: 8 tables (2 occupied, 2 dirty/just-paid, 1 reserved, 3 open), 2 open orders, 2 paid, 1 online order, 2 reservations, 1 CRM guest\n";
 echo "Done. Demo password for every staff login: {$demoPassword}\n";

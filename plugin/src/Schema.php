@@ -19,6 +19,7 @@ final class Schema
     public const TABLE       = 'rest_table';
     public const ORDER       = 'rest_order';
     public const ORDER_ITEM  = 'rest_order_item';
+    public const ORDER_RATE  = 'rest_order_rate';
     public const RESERVATION = 'rest_reservation';
 
     /** @return list<string> each statement individually idempotent (ADR 0005) */
@@ -52,9 +53,17 @@ final class Schema
     public static function orders(): array
     {
         return [
+            // `table_id` is NULL for an online order (no table); `channel`
+            // distinguishes dine-in from online, and `customer_*` carry the online
+            // guest's contact for the kitchen to call the order out. (Folded into
+            // this unreleased migration — every deploy migrates from an empty DB.)
             'CREATE TABLE IF NOT EXISTS ' . self::ORDER . " (
                 id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                table_id       BIGINT UNSIGNED NOT NULL,
+                table_id       BIGINT UNSIGNED NULL,
+                channel        ENUM('dine_in','online') NOT NULL DEFAULT 'dine_in',
+                customer_name  VARCHAR(120) NULL,
+                customer_phone VARCHAR(40) NULL,
+                confirm_token  VARCHAR(32) NULL,
                 status         ENUM('open','sent','preparing','ready','served','closed') NOT NULL DEFAULT 'open',
                 paid           TINYINT(1) NOT NULL DEFAULT 0,
                 amount_paid    DECIMAL(10,2) NULL,
@@ -75,6 +84,15 @@ final class Schema
                 qty          SMALLINT UNSIGNED NOT NULL DEFAULT 1,
                 created_at   DATETIME NOT NULL,
                 INDEX idx_item_order (order_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+
+            // A tiny per-IP fixed-window counter for the public online-order
+            // endpoint (anti-spam). One row per client IP; the window resets when
+            // it expires. Not PII of value — an IP + a count, wiped by the reset.
+            'CREATE TABLE IF NOT EXISTS ' . self::ORDER_RATE . ' (
+                ip           VARCHAR(45) NOT NULL PRIMARY KEY,
+                window_start DATETIME NOT NULL,
+                count        INT UNSIGNED NOT NULL DEFAULT 0
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
         ];
     }

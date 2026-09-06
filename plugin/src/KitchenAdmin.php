@@ -97,8 +97,15 @@ final class KitchenAdmin
                 . '<button type="submit" class="nb-btn">' . self::e($col['verb']) . '</button></form>';
         }
 
-        return '<article class="kx-ticket">'
-            . '<div class="kx-ticket-top"><span class="kx-table">' . self::e((string) ($t['table_label'] ?? '—')) . '</span>'
+        // An online (takeaway) order has no table — label it by channel + the guest
+        // name the cook calls out, instead of a table number.
+        $isOnline = ($t['channel'] ?? 'dine_in') === 'online';
+        $where    = $isOnline
+            ? '🛍 Online · ' . self::e((string) ($t['customer_name'] ?? 'Guest'))
+            : self::e((string) ($t['table_label'] ?? '—'));
+
+        return '<article class="kx-ticket' . ($isOnline ? ' kx-online' : '') . '">'
+            . '<div class="kx-ticket-top"><span class="kx-table">' . $where . '</span>'
             . '<span class="kx-age">#' . self::e((string) $t['id']) . ' · ' . self::e($this->age((string) $t['updated_at'])) . '</span></div>'
             . '<ul class="kx-items">' . $lines . '</ul>'
             . $advance
