@@ -46,7 +46,7 @@ final class OrdersAdmin
         $viewId    = ($view !== null && preg_match('/^\d+$/', trim($view)) === 1) ? (int) trim($view) : null;
         $viewOrder = $viewId !== null ? $this->orders->get($viewId) : null;
 
-        $html = $this->styles($nonce) . '<div class="nb-page-head"><h1>Orders</h1></div>' . $this->notice($notice);
+        $html = $this->styles($nonce) . Branding::head('Orders', 'Open a table, build the order, settle up.', $nonce) . $this->notice($notice);
 
         if ($viewOrder !== null) {
             return $html . $this->orderScreen($csrf, $viewOrder);

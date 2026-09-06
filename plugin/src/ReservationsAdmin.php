@@ -40,7 +40,7 @@ final class ReservationsAdmin
         $filter  = ($status !== null && in_array(trim($status), Reservations::STATUSES, true)) ? trim($status) : null;
 
         return $this->styles($nonce)
-            . '<div class="nb-page-head"><h1>Reservations</h1></div>'
+            . Branding::head('Reservations', 'The book — upcoming bookings.', $nonce)
             . $this->notice($notice)
             . '<p class="nb-muted rz-intro">Upcoming bookings. Linking a guest connects the booking to their record in the CRM — opening it needs CRM access.</p>'
             . $this->form($csrf, $editRes)
