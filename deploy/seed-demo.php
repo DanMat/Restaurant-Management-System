@@ -77,6 +77,11 @@ $roleId = [
         'danmat.restaurant:manage',
         'nimbuscms.crm:read',
         'nimbuscms.crm:write',
+        // The manager owns the menu — grant content write on the menu collections
+        // (write implies read) so they can edit items/categories from the CMS.
+        // Scoped to these collections only: no schema:write, no other content.
+        'menu_items:write',
+        'categories:write',
     ], false),
 ];
 echo "  roles: " . implode(', ', array_keys($roleId)) . "\n";

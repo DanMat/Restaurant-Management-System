@@ -77,7 +77,7 @@ capability role, so each sees only what their role allows:
 | `host@ras.demo` | Host (`:floor`) | Floor, Orders, Reservations | same as waiter |
 | `busboy@ras.demo` | Busboy (`:floor`) | Floor, Orders, Reservations | same as waiter |
 | `cook@ras.demo` | Cook (`:kitchen`) | Kitchen only | **cannot** take payment |
-| `manager@ras.demo` | Manager (`:floor` + `:kitchen` + `:manage` + `crm:read/write`) | Everything incl. Reports | Takes payment · **can** open CRM guest |
+| `manager@ras.demo` | Manager (`:floor` + `:kitchen` + `:manage` + `crm:read/write` + `menu_items/categories:write`) | Everything incl. Reports **and the menu** (edit items/categories) | Takes payment · **can** open CRM guest |
 | `admin@ras.demo` | Admin | The whole CMS | — |
 
 Logging in as a waiter vs a manager shows the capability model live: the cook has
