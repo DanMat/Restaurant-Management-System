@@ -46,6 +46,37 @@ final class Menu implements MenuSource
     }
 
     /**
+     * A handful of items for the public homepage: name, price, category and a
+     * short blurb (the item's `body`). Items that HAVE a blurb come first (a
+     * homepage reads better with descriptions), then the rest, capped at $limit.
+     * Order within each group follows the collection read order, so the result is
+     * deterministic and visitor-independent — safe to bake into the page cache
+     * (ADR 0027).
+     *
+     * @return list<array{name:string,price:string,category:?string,blurb:string}>
+     */
+    public function featured(int $limit = 3): array
+    {
+        $blurbed = [];
+        $plain   = [];
+        foreach (($this->reader)()->entries(self::COLLECTION, 500) as $entry) {
+            $fields = is_array($entry['fields'] ?? null) ? $entry['fields'] : [];
+            $row    = [
+                'name'     => (string) ($entry['title'] ?? ''),
+                'price'    => $this->price($entry),
+                'category' => $this->category($entry),
+                'blurb'    => trim((string) ($fields['body'] ?? '')),
+            ];
+            if ($row['blurb'] !== '') {
+                $blurbed[] = $row;
+            } else {
+                $plain[] = $row;
+            }
+        }
+        return array_slice(array_merge($blurbed, $plain), 0, max(0, $limit));
+    }
+
+    /**
      * The name + unit price to snapshot onto an order line, for one menu item id,
      * or null if there is no such published item.
      *

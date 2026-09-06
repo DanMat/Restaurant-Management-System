@@ -49,6 +49,11 @@ final class OrdersAdminTest extends TestCase
             {
                 return [['id' => 101, 'name' => 'Margherita', 'price' => '12.50', 'category' => 'Mains']];
             }
+
+            public function featured(int $limit = 3): array
+            {
+                return [];
+            }
         };
         $this->admin = new OrdersAdmin($this->orders, $this->tables, $menu);
     }

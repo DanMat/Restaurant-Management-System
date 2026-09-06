@@ -11,7 +11,9 @@
  * @var array<string,mixed> $meta
  * @var string   $head      extra <head> HTML contributed by plugins (already-rendered, trusted)
  */
-$pageTitle = isset($title) && $title !== '' ? $title . ' · ' . $appName : $appName;
+// Append the site name unless the page title already is it (the homepage entry is
+// titled after the restaurant, so this avoids "Name · Name").
+$pageTitle = isset($title) && $title !== '' && $title !== $appName ? $title . ' · ' . $appName : $appName;
 $meta      = $meta ?? [];
 $cssVer    = substr((string) @hash_file('crc32b', __DIR__ . '/../assets/app.css'), 0, 8);
 ?>
