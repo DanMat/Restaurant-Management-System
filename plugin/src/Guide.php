@@ -107,6 +107,13 @@ final class Guide
 
         To see a linked guest's contact details, use the CRM's own tools with that
         `contact_id` (they require the CRM capability).
+
+        ## Reports
+
+        - `restaurant_reports` — a revenue summary from **paid** orders: `today` and
+          `last_7_days` (each `{revenue, orders}`), `active_orders` (not yet closed),
+          and `top_items` (the week's best sellers). Revenue is the settled amount, not
+          a live recomputation.
         MD;
     }
 }
