@@ -6,6 +6,7 @@ namespace DanMat\Restaurant\Tests;
 
 use DanMat\Restaurant\Menu;
 use DanMat\Restaurant\Orders;
+use DanMat\Restaurant\Reservations;
 use DanMat\Restaurant\RestaurantToolset;
 use DanMat\Restaurant\Schema;
 use DanMat\Restaurant\Tables;
@@ -37,21 +38,23 @@ final class RestaurantToolsetTest extends TestCase
             'user' => getenv('TEST_DB_USER') ?: 'root',
             'pass' => ($p = getenv('TEST_DB_PASS')) !== false ? $p : 'root',
         ]);
-        foreach ([...Schema::tables(), ...Schema::orders()] as $sql) {
+        foreach ([...Schema::tables(), ...Schema::orders(), ...Schema::reservations()] as $sql) {
             $db->execute($sql);
         }
         $db->execute('TRUNCATE ' . Schema::TABLE);
         $db->execute('TRUNCATE ' . Schema::ORDER);
         $db->execute('TRUNCATE ' . Schema::ORDER_ITEM);
+        $db->execute('TRUNCATE ' . Schema::RESERVATION);
 
-        $storage = new PluginStorage($db);
-        $tables  = new Tables(static fn (): PluginStorage => $storage);
-        $orders  = new Orders(static fn (): PluginStorage => $storage, $tables, static fn (int $id): ?array => null);
+        $storage      = new PluginStorage($db);
+        $tables       = new Tables(static fn (): PluginStorage => $storage);
+        $orders       = new Orders(static fn (): PluginStorage => $storage, $tables, static fn (int $id): ?array => null);
+        $reservations = new Reservations(static fn (): PluginStorage => $storage, $tables);
         // The menu reader is never exercised here (order lines are manual), so a
         // reader that would need core content is fine left unbuilt.
         $menu = new Menu(static fn () => throw new \RuntimeException('no content reader in this test'));
 
-        $this->toolset = new RestaurantToolset($tables, $orders, $menu);
+        $this->toolset = new RestaurantToolset($tables, $orders, $menu, $reservations);
         $this->toolset->bindTo('danmat.restaurant');
         $this->ctx = new EntryOpContext('127.0.0.1', '/api/v1/mcp');
 
@@ -76,13 +79,41 @@ final class RestaurantToolsetTest extends TestCase
             'restaurant_menu', 'restaurant_order_open', 'restaurant_orders', 'restaurant_order_get', 'restaurant_order_status',
             'restaurant_order_add_item', 'restaurant_order_set_item_qty', 'restaurant_order_remove_item', 'restaurant_order_pay', 'restaurant_order_delete',
             'restaurant_kitchen',
+            'restaurant_reservations', 'restaurant_reservation_get', 'restaurant_reservation_set', 'restaurant_reservation_status', 'restaurant_reservation_delete',
         ], $names);
     }
 
     public function test_a_read_only_token_sees_only_the_read_tools(): void
     {
         $names = array_column($this->toolset->definitions($this->principal('danmat.restaurant:read')), 'name');
-        self::assertSame(['restaurant_tables', 'restaurant_table_get', 'restaurant_menu', 'restaurant_orders', 'restaurant_order_get', 'restaurant_kitchen'], $names);
+        self::assertSame([
+            'restaurant_tables', 'restaurant_table_get', 'restaurant_menu', 'restaurant_orders', 'restaurant_order_get',
+            'restaurant_kitchen', 'restaurant_reservations', 'restaurant_reservation_get',
+        ], $names);
+    }
+
+    public function test_a_reservation_round_trips_over_mcp_and_carries_only_the_crm_link(): void
+    {
+        $write = $this->principal('danmat.restaurant:read', 'danmat.restaurant:write');
+
+        $out = $this->toolset->call('restaurant_reservation_set', ['party_name' => 'Smith', 'party_size' => 4, 'contact_id' => 4242], $write, $this->ctx);
+        self::assertTrue($out['ok']);
+        self::assertSame('Smith', $out['reservation']['party_name']);
+        self::assertSame(4242, $out['reservation']['contact_id'], 'the CRM link is a bare id — never resolved here');
+        self::assertArrayNotHasKey('guest_name', $out['reservation'], 'the restaurant surfaces no CRM contact data');
+        $id = $out['reservation']['id'];
+
+        $this->toolset->call('restaurant_reservation_status', ['id' => $id, 'status' => 'seated'], $write, $this->ctx);
+        self::assertSame('seated', $this->toolset->call('restaurant_reservation_get', ['id' => $id], $write, $this->ctx)['reservation']['status']);
+        self::assertSame(1, $this->toolset->call('restaurant_reservations', [], $write, $this->ctx)['count']);
+        self::assertTrue($this->toolset->call('restaurant_reservation_delete', ['id' => $id], $write, $this->ctx)['deleted']);
+    }
+
+    public function test_a_content_token_cannot_reach_reservations(): void
+    {
+        $this->expectException(McpError::class);
+        $this->expectExceptionMessage('Unknown tool "restaurant_reservation_set"');
+        $this->toolset->call('restaurant_reservation_set', ['party_name' => 'x'], $this->principal('*:read', '*:write'), $this->ctx);
     }
 
     public function test_the_kitchen_queue_lists_sent_and_preparing_tickets(): void
