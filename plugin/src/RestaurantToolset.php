@@ -30,6 +30,7 @@ final class RestaurantToolset extends PluginToolset
         private Orders $orders,
         private MenuSource $menu,
         private Reservations $reservations,
+        private Reports $reports,
     ) {
     }
 
@@ -203,6 +204,30 @@ final class RestaurantToolset extends PluginToolset
                 'required'   => ['id'],
                 'properties' => ['id' => ['type' => 'integer', 'description' => 'The reservation id.']],
             ], $this->reservationDelete(...)),
+
+            new PluginTool('reports', 'read', 'A revenue summary: today and the last 7 days (from paid orders), active orders, and the week\'s best-selling items.', [
+                'type'       => 'object',
+                'properties' => new \stdClass(),
+            ], $this->reports(...)),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function reports(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $ref        = time();
+        $todayStart = date('Y-m-d 00:00:00', $ref);
+        $tomorrow   = date('Y-m-d 00:00:00', $ref + 86400);
+        $weekStart  = date('Y-m-d 00:00:00', $ref - 6 * 86400);
+
+        return [
+            'today'         => $this->reports->revenueBetween($todayStart, $tomorrow),
+            'last_7_days'   => $this->reports->revenueBetween($weekStart, $tomorrow),
+            'active_orders' => $this->reports->activeOrders(),
+            'top_items'     => $this->reports->topItems($weekStart, $tomorrow, 5),
         ];
     }
 

@@ -32,6 +32,7 @@ final class RestaurantPluginTest extends TestCase
         self::assertArrayHasKey('danmat.restaurant:floor', $grantable);
         self::assertArrayHasKey('danmat.restaurant:kitchen', $grantable);
         self::assertArrayHasKey('danmat.restaurant:manage', $grantable);
+        self::assertSame('Restaurant: manage', $grantable['danmat.restaurant:manage']);
         // read/write remain for the MCP/agent surface.
         self::assertArrayHasKey('danmat.restaurant:read', $grantable);
         self::assertArrayHasKey('danmat.restaurant:write', $grantable);
@@ -49,5 +50,6 @@ final class RestaurantPluginTest extends TestCase
         self::assertSame('danmat.restaurant:floor', $gate['restaurant-orders'], 'orders + payment are floor-staff');
         self::assertSame('danmat.restaurant:kitchen', $gate['restaurant-kitchen'], 'the kitchen is cooks only');
         self::assertSame('danmat.restaurant:floor', $gate['restaurant-reservations'], 'the book is floor-staff');
+        self::assertSame('danmat.restaurant:manage', $gate['restaurant-reports'], 'reports are manager-only');
     }
 }

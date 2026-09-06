@@ -6,6 +6,7 @@ namespace DanMat\Restaurant\Tests;
 
 use DanMat\Restaurant\Menu;
 use DanMat\Restaurant\Orders;
+use DanMat\Restaurant\Reports;
 use DanMat\Restaurant\Reservations;
 use DanMat\Restaurant\RestaurantToolset;
 use DanMat\Restaurant\Schema;
@@ -50,11 +51,12 @@ final class RestaurantToolsetTest extends TestCase
         $tables       = new Tables(static fn (): PluginStorage => $storage);
         $orders       = new Orders(static fn (): PluginStorage => $storage, $tables, static fn (int $id): ?array => null);
         $reservations = new Reservations(static fn (): PluginStorage => $storage, $tables);
+        $reports      = new Reports(static fn (): PluginStorage => $storage);
         // The menu reader is never exercised here (order lines are manual), so a
         // reader that would need core content is fine left unbuilt.
         $menu = new Menu(static fn () => throw new \RuntimeException('no content reader in this test'));
 
-        $this->toolset = new RestaurantToolset($tables, $orders, $menu, $reservations);
+        $this->toolset = new RestaurantToolset($tables, $orders, $menu, $reservations, $reports);
         $this->toolset->bindTo('danmat.restaurant');
         $this->ctx = new EntryOpContext('127.0.0.1', '/api/v1/mcp');
 
@@ -80,6 +82,7 @@ final class RestaurantToolsetTest extends TestCase
             'restaurant_order_add_item', 'restaurant_order_set_item_qty', 'restaurant_order_remove_item', 'restaurant_order_pay', 'restaurant_order_delete',
             'restaurant_kitchen',
             'restaurant_reservations', 'restaurant_reservation_get', 'restaurant_reservation_set', 'restaurant_reservation_status', 'restaurant_reservation_delete',
+            'restaurant_reports',
         ], $names);
     }
 
@@ -88,7 +91,7 @@ final class RestaurantToolsetTest extends TestCase
         $names = array_column($this->toolset->definitions($this->principal('danmat.restaurant:read')), 'name');
         self::assertSame([
             'restaurant_tables', 'restaurant_table_get', 'restaurant_menu', 'restaurant_orders', 'restaurant_order_get',
-            'restaurant_kitchen', 'restaurant_reservations', 'restaurant_reservation_get',
+            'restaurant_kitchen', 'restaurant_reservations', 'restaurant_reservation_get', 'restaurant_reports',
         ], $names);
     }
 

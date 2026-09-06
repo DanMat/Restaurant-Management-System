@@ -23,7 +23,7 @@ use Nimbus\Plugin\PluginStorage;
  * payment & turn. Slice 5: staff roles — the terminals are gated on fine-grained
  * actions (ADR 0030): floor staff reach tables/orders/payment, cooks the kitchen,
  * managers everything. Slice 6: reservations, which link to CRM guests without the
- * restaurant ever reading CRM data. Reports follow.
+ * restaurant ever reading CRM data. Slice 7: the manager reports dashboard.
  */
 final class RestaurantPlugin implements Plugin
 {
@@ -52,9 +52,10 @@ final class RestaurantPlugin implements Plugin
         $menu         = new Menu(static fn () => $context->content());
         $orders       = new Orders($storage, $tables, static fn (int $menuItemId): ?array => $menu->snapshot($menuItemId));
         $reservations = new Reservations($storage, $tables);
+        $reports      = new Reports($storage);
 
         // The agent surface — every tool gates on danmat.restaurant:read|write (ADR 0016).
-        $context->mcp()->register(new RestaurantToolset($tables, $orders, $menu, $reservations));
+        $context->mcp()->register(new RestaurantToolset($tables, $orders, $menu, $reservations, $reports));
 
         // The floor board. A staff terminal is a capability-gated ADMIN PAGE, never a
         // public plugin route (routes carry no auth/CSRF). Gated on :write; the handler
@@ -281,6 +282,15 @@ final class RestaurantPlugin implements Plugin
             }
             return Response::redirect('/admin/restaurant-reservations?ok=deleted');
         });
+
+        // Reports — the manager dashboard. Read-only, gated on the manage action.
+        $context->adminPages()->register(
+            'restaurant-reports',
+            'Reports',
+            '📈',
+            static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new ReportsAdmin($reports))->render($csrf, null, $nonce),
+            self::ID . ':manage',
+        );
 
         // Teach an MCP agent how to drive the restaurant (ADR 0013).
         $context->skills()->register('Restaurant', Guide::text());
