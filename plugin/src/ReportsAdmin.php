@@ -34,7 +34,7 @@ final class ReportsAdmin
             . '<div class="nb-page-head"><h1>Reports</h1></div>'
             . '<p class="nb-muted rz-intro">How service is going — revenue and what is selling. Figures are from settled (paid) orders.</p>'
             . '<div class="rz-cards">'
-            . $this->card("Today's revenue", $today['revenue'], $today['orders'] . ' paid')
+            . $this->card('Revenue today', $today['revenue'], $today['orders'] . ' paid')
             . $this->card('Last 7 days', $week['revenue'], $week['orders'] . ' paid')
             . $this->card('Active orders', (string) $active, 'open on the floor')
             . '</div>'

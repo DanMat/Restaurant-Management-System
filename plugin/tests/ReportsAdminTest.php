@@ -60,7 +60,7 @@ final class ReportsAdminTest extends TestCase
 
         $html = $this->admin->render('', null, 'n', '2026-06-01 20:00:00');
 
-        self::assertStringContainsString("Today's revenue", $html);
+        self::assertStringContainsString('Revenue today', $html);
         self::assertStringContainsString('20.00', $html, 'the settled revenue shows');
         self::assertStringNotContainsString('<b>Special</b>', $html, 'a hostile item name is escaped');
         self::assertStringContainsString('&lt;b&gt;Special&lt;/b&gt;', $html);
