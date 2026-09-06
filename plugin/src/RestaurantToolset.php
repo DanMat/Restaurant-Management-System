@@ -29,6 +29,7 @@ final class RestaurantToolset extends PluginToolset
         private Tables $tables,
         private Orders $orders,
         private MenuSource $menu,
+        private Reservations $reservations,
     ) {
     }
 
@@ -160,7 +161,104 @@ final class RestaurantToolset extends PluginToolset
                 'type'       => 'object',
                 'properties' => new \stdClass(),
             ], $this->kitchen(...)),
+
+            new PluginTool('reservations', 'read', 'List reservations, soonest first, optionally filtered by status.', [
+                'type'       => 'object',
+                'properties' => [
+                    'status' => ['type' => 'string', 'enum' => Reservations::STATUSES, 'description' => 'Optional: booked / seated / cancelled / no_show.'],
+                ],
+            ], $this->reservations(...)),
+
+            new PluginTool('reservation_get', 'read', 'One reservation by id, or none. (contact_id links to a CRM guest; open it in the CRM, which is separately gated.)', [
+                'type'       => 'object',
+                'required'   => ['id'],
+                'properties' => ['id' => ['type' => 'integer', 'description' => 'The reservation id.']],
+            ], $this->reservationGet(...)),
+
+            new PluginTool('reservation_set', 'write', 'Create a reservation (omit id) or update one (with id). Only the fields you send change.', [
+                'type'       => 'object',
+                'properties' => [
+                    'id'          => ['type' => 'integer', 'description' => 'Existing reservation id to update; omit to create.'],
+                    'party_name'  => ['type' => 'string', 'description' => 'The booking name (required to create).'],
+                    'party_size'  => ['type' => 'integer', 'description' => 'How many. Defaults to 2.'],
+                    'reserved_at' => ['type' => 'string', 'description' => 'When, "YYYY-MM-DD HH:MM[:SS]". Defaults to now.'],
+                    'table_id'    => ['type' => 'integer', 'description' => 'An existing table to hold. Optional; blank to unassign.'],
+                    'contact_id'  => ['type' => 'integer', 'description' => 'The guest\'s CRM contact id to link. Optional; not resolved here — the restaurant never reads CRM data.'],
+                    'status'      => ['type' => 'string', 'enum' => Reservations::STATUSES, 'description' => 'Reservation status. Defaults to booked.'],
+                    'notes'       => ['type' => 'string', 'description' => 'Free-text notes. Optional.'],
+                ],
+            ], $this->reservationSet(...)),
+
+            new PluginTool('reservation_status', 'write', 'Set a reservation status (booked/seated/cancelled/no_show).', [
+                'type'       => 'object',
+                'required'   => ['id', 'status'],
+                'properties' => [
+                    'id'     => ['type' => 'integer', 'description' => 'The reservation id.'],
+                    'status' => ['type' => 'string', 'enum' => Reservations::STATUSES, 'description' => 'The new status.'],
+                ],
+            ], $this->reservationStatus(...)),
+
+            new PluginTool('reservation_delete', 'write', 'Delete a reservation by id.', [
+                'type'       => 'object',
+                'required'   => ['id'],
+                'properties' => ['id' => ['type' => 'integer', 'description' => 'The reservation id.']],
+            ], $this->reservationDelete(...)),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function reservations(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $list = $this->reservations->all($this->nullableStr($a, 'status'));
+        return ['reservations' => $list, 'count' => count($list)];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function reservationGet(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $id = $this->requireInt($a, 'id');
+        return ['id' => $id, 'reservation' => $this->reservations->get($id)];
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function reservationSet(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $id = $this->reservations->save($this->nullableInt($a, 'id'), $a, $this->now());
+            return ['ok' => true, 'reservation' => $this->reservations->get($id)];
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function reservationStatus(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        return $this->guard(function () use ($a): array {
+            $id      = $this->requireInt($a, 'id');
+            $changed = $this->reservations->setStatus($id, (string) ($a['status'] ?? ''), $this->now());
+            return ['ok' => true, 'changed' => $changed > 0, 'reservation' => $this->reservations->get($id)];
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $a
+     * @return array<string,mixed>
+     */
+    private function reservationDelete(array $a, TokenPrincipal $p, EntryOpContext $c): array
+    {
+        $id = $this->requireInt($a, 'id');
+        return ['ok' => true, 'deleted' => $this->reservations->delete($id) > 0];
     }
 
     /**

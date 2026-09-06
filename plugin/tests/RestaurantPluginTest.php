@@ -48,5 +48,6 @@ final class RestaurantPluginTest extends TestCase
         self::assertSame('danmat.restaurant:floor', $gate['restaurant'], 'the floor is floor-staff only');
         self::assertSame('danmat.restaurant:floor', $gate['restaurant-orders'], 'orders + payment are floor-staff');
         self::assertSame('danmat.restaurant:kitchen', $gate['restaurant-kitchen'], 'the kitchen is cooks only');
+        self::assertSame('danmat.restaurant:floor', $gate['restaurant-reservations'], 'the book is floor-staff');
     }
 }

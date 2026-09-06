@@ -87,6 +87,26 @@ final class Guide
           `ready`, oldest first, each with its items. Advance a ticket by setting its
           status with `restaurant_order_status`: `sent` → `preparing` (started) →
           `ready` (up for the pass). The floor then marks it `served`.
+
+        ## Reservations
+
+        A booking of a table at a time, for a party. `party_name`, `party_size`,
+        `reserved_at`, `notes` are the restaurant's own booking data; `contact_id`
+        optionally links to the guest's record in the **CRM** — the restaurant only
+        stores that id and never reads CRM data, so opening a guest's record is done
+        through the CRM's own (separately gated) tools/pages.
+
+        - `restaurant_reservations` — list bookings, soonest first, filter by `status`
+          (`booked`/`seated`/`cancelled`/`no_show`).
+        - `restaurant_reservation_get` — one booking by `id`.
+        - `restaurant_reservation_set` — create (omit `id`) or update: `party_name`
+          (required), `party_size`, `reserved_at`, `table_id` (a table to hold),
+          `contact_id` (the guest's CRM id), `status`, `notes`.
+        - `restaurant_reservation_status` — set the booking's status.
+        - `restaurant_reservation_delete` — remove a booking.
+
+        To see a linked guest's contact details, use the CRM's own tools with that
+        `contact_id` (they require the CRM capability).
         MD;
     }
 }

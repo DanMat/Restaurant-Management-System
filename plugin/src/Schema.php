@@ -16,9 +16,10 @@ namespace DanMat\Restaurant;
  */
 final class Schema
 {
-    public const TABLE      = 'rest_table';
-    public const ORDER      = 'rest_order';
-    public const ORDER_ITEM = 'rest_order_item';
+    public const TABLE       = 'rest_table';
+    public const ORDER       = 'rest_order';
+    public const ORDER_ITEM  = 'rest_order_item';
+    public const RESERVATION = 'rest_reservation';
 
     /** @return list<string> each statement individually idempotent (ADR 0005) */
     public static function tables(): array
@@ -75,6 +76,38 @@ final class Schema
                 created_at   DATETIME NOT NULL,
                 INDEX idx_item_order (order_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+        ];
+    }
+
+    /**
+     * Reservations — a booking of a table, at a time, for a party. `party_name` and
+     * `notes` are the restaurant's **own** first-party data (what the host types when
+     * taking the booking); `contact_id` is an optional link to the guest's full record
+     * in the CRM (a separate plugin). The restaurant stores only that id and links out
+     * to the CRM's own capability-gated page — it never reads or copies CRM contact
+     * PII, so the CRM's gate is respected by construction. `table_id` is a soft ref to
+     * a table (validated at write, same plugin).
+     *
+     * @return list<string> each statement individually idempotent (ADR 0005)
+     */
+    public static function reservations(): array
+    {
+        return [
+            'CREATE TABLE IF NOT EXISTS ' . self::RESERVATION . " (
+                id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                table_id    BIGINT UNSIGNED NULL,
+                contact_id  BIGINT UNSIGNED NULL,
+                party_name  VARCHAR(120) NOT NULL,
+                party_size  SMALLINT UNSIGNED NOT NULL DEFAULT 2,
+                reserved_at DATETIME NOT NULL,
+                status      ENUM('booked','seated','cancelled','no_show') NOT NULL DEFAULT 'booked',
+                notes       TEXT NULL,
+                created_at  DATETIME NOT NULL,
+                updated_at  DATETIME NOT NULL,
+                INDEX idx_res_at (reserved_at),
+                INDEX idx_res_status (status),
+                INDEX idx_res_table (table_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         ];
     }
 }

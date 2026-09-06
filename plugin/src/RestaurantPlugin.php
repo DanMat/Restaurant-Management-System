@@ -22,7 +22,8 @@ use Nimbus\Plugin\PluginStorage;
  * content-read capability, ADR 0029). Slice 3: the kitchen display. Slice 4:
  * payment & turn. Slice 5: staff roles — the terminals are gated on fine-grained
  * actions (ADR 0030): floor staff reach tables/orders/payment, cooks the kitchen,
- * managers everything. Reservations and reports follow.
+ * managers everything. Slice 6: reservations, which link to CRM guests without the
+ * restaurant ever reading CRM data. Reports follow.
  */
 final class RestaurantPlugin implements Plugin
 {
@@ -33,6 +34,7 @@ final class RestaurantPlugin implements Plugin
     {
         $context->migrations()->register('001_tables', Schema::tables());
         $context->migrations()->register('002_orders', Schema::orders());
+        $context->migrations()->register('003_reservations', Schema::reservations());
 
         // Wildcard-immune capability with fine-grained staff actions (ADR 0030, F4):
         //   floor   — waiters/hosts/busboys: tables, orders, payment
@@ -47,11 +49,12 @@ final class RestaurantPlugin implements Plugin
         $tables  = new Tables($storage);
         // The menu is a Nimbus collection, read in-process via the content-read
         // capability (ADR 0029); Orders snapshots a line's name+price through it.
-        $menu    = new Menu(static fn () => $context->content());
-        $orders  = new Orders($storage, $tables, static fn (int $menuItemId): ?array => $menu->snapshot($menuItemId));
+        $menu         = new Menu(static fn () => $context->content());
+        $orders       = new Orders($storage, $tables, static fn (int $menuItemId): ?array => $menu->snapshot($menuItemId));
+        $reservations = new Reservations($storage, $tables);
 
         // The agent surface — every tool gates on danmat.restaurant:read|write (ADR 0016).
-        $context->mcp()->register(new RestaurantToolset($tables, $orders, $menu));
+        $context->mcp()->register(new RestaurantToolset($tables, $orders, $menu, $reservations));
 
         // The floor board. A staff terminal is a capability-gated ADMIN PAGE, never a
         // public plugin route (routes carry no auth/CSRF). Gated on :write; the handler
@@ -236,6 +239,47 @@ final class RestaurantPlugin implements Plugin
                 }
             }
             return Response::redirect('/admin/restaurant-kitchen?ok=advanced');
+        });
+
+        // Reservations — the book. Floor staff manage bookings; a booking may link to
+        // a CRM guest, but this page only links out (the CRM page is separately gated).
+        $context->adminPages()->register(
+            'restaurant-reservations',
+            'Reservations',
+            '📅',
+            static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new ReservationsAdmin($reservations, $tables))->render($csrf, $r->query('ok') ?? $r->query('err'), $r->query('edit'), $r->query('status'), $nonce),
+            self::ID . ':floor',
+        );
+
+        $context->adminPages()->action('restaurant-reservations', 'reservation-save', static function (Request $r) use ($reservations): Response {
+            $fields = [
+                'party_name'  => (string) ($r->input('party_name') ?? ''),
+                'party_size'  => (string) ($r->input('party_size') ?? ''),
+                'reserved_at' => (string) ($r->input('reserved_at') ?? ''),
+                'table_id'    => (string) ($r->input('table_id') ?? ''),
+                'contact_id'  => (string) ($r->input('contact_id') ?? ''),
+                'status'      => (string) ($r->input('status') ?? ''),
+                'notes'       => (string) ($r->input('notes') ?? ''),
+            ];
+            $idIn = trim((string) ($r->input('id') ?? ''));
+            $id   = ($idIn !== '' && ctype_digit($idIn)) ? (int) $idIn : null;
+            try {
+                $reservations->save($id, $fields, date('Y-m-d H:i:s'));
+                return Response::redirect('/admin/restaurant-reservations?ok=saved');
+            } catch (\InvalidArgumentException $e) {
+                $code = str_contains($e->getMessage(), 'party name') ? 'noname' : 'invalid';
+                return Response::redirect('/admin/restaurant-reservations?err=' . $code);
+            } catch (\Throwable) {
+                return Response::redirect('/admin/restaurant-reservations?err=invalid');
+            }
+        });
+
+        $context->adminPages()->action('restaurant-reservations', 'reservation-delete', static function (Request $r) use ($reservations): Response {
+            $idIn = trim((string) ($r->input('id') ?? ''));
+            if ($idIn !== '' && ctype_digit($idIn)) {
+                $reservations->delete((int) $idIn);
+            }
+            return Response::redirect('/admin/restaurant-reservations?ok=deleted');
         });
 
         // Teach an MCP agent how to drive the restaurant (ADR 0013).
