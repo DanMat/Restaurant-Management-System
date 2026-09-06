@@ -19,8 +19,10 @@ use Nimbus\Plugin\PluginStorage;
  * (ADR 0015), on capability-gated admin pages (ADR 0020) and MCP tools (ADR 0016).
  *
  * Slice 1: the floor (tables). Slice 2: orders + line items (menu read via the core
- * content-read capability, ADR 0029). Slice 3: the kitchen display. Payment,
- * reservations and reports follow, each as its own slice.
+ * content-read capability, ADR 0029). Slice 3: the kitchen display. Slice 4:
+ * payment & turn. Slice 5: staff roles — the terminals are gated on fine-grained
+ * actions (ADR 0030): floor staff reach tables/orders/payment, cooks the kitchen,
+ * managers everything. Reservations and reports follow.
  */
 final class RestaurantPlugin implements Plugin
 {
@@ -32,9 +34,13 @@ final class RestaurantPlugin implements Plugin
         $context->migrations()->register('001_tables', Schema::tables());
         $context->migrations()->register('002_orders', Schema::orders());
 
-        // One coarse, wildcard-immune capability for v1 (danmat.restaurant:read/write).
-        // Fine-grained staff roles are a recorded platform finding (F4), not app hacks.
-        $context->capabilities()->declare('Restaurant', ['read', 'write']);
+        // Wildcard-immune capability with fine-grained staff actions (ADR 0030, F4):
+        //   floor   — waiters/hosts/busboys: tables, orders, payment
+        //   kitchen — cooks: the kitchen display
+        //   manage  — managers/admins: reports & settings (reports land later)
+        //   read/write — the agent/integration surface over MCP
+        // Legacy roles map to grants of these; a manager holds floor+kitchen+manage.
+        $context->capabilities()->declare('Restaurant', ['read', 'write', 'floor', 'kitchen', 'manage']);
 
         // Storage is taken lazily, so register() runs no query and loads without a database.
         $storage = static fn (): PluginStorage => $context->storage();
@@ -55,7 +61,7 @@ final class RestaurantPlugin implements Plugin
             'Floor',
             '🍽️',
             static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new TablesAdmin($tables))->render($csrf, $r->query('ok') ?? $r->query('err'), $r->query('edit'), $r->query('status'), $nonce),
-            self::ID . ':write',
+            self::ID . ':floor',
         );
 
         $context->adminPages()->action('restaurant', 'table-save', static function (Request $r) use ($tables): Response {
@@ -106,7 +112,7 @@ final class RestaurantPlugin implements Plugin
             'Orders',
             '🧾',
             static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new OrdersAdmin($orders, $tables, $menu))->render($csrf, $r->query('ok') ?? $r->query('err'), $r->query('view'), $r->query('status'), $nonce),
-            self::ID . ':write',
+            self::ID . ':floor',
         );
 
         // Where an order action returns to: back to the order screen it was on
@@ -217,7 +223,7 @@ final class RestaurantPlugin implements Plugin
             'Kitchen',
             '👨‍🍳',
             static fn (Request $r, string $nonce = '', string $csrf = ''): string => (new KitchenAdmin($orders))->render($csrf, $r->query('ok') ?? $r->query('err'), $nonce),
-            self::ID . ':write',
+            self::ID . ':kitchen',
         );
 
         $context->adminPages()->action('restaurant-kitchen', 'advance', static function (Request $r) use ($orders): Response {

@@ -18,10 +18,23 @@ final class Guide
         # Restaurant
 
         The restaurant floor, orders, kitchen and reports — this application's own
-        plugin. Everything is gated by the `danmat.restaurant` capability: a read
-        needs `danmat.restaurant:read`, a write needs `danmat.restaurant:write`. A
-        content `*:write` token cannot reach it, and a tool you lack the capability
-        for is invisible.
+        plugin. Everything is gated by the `danmat.restaurant` capability, and a
+        content `*:write` token cannot reach it (a tool you lack the capability for is
+        invisible).
+
+        ## Staff roles
+
+        Staff are Nimbus users granted fine-grained actions of `danmat.restaurant`:
+
+        - `danmat.restaurant:floor` — the floor: tables, orders and taking payment
+          (waiters, hosts, busboys).
+        - `danmat.restaurant:kitchen` — the kitchen display (cooks).
+        - `danmat.restaurant:manage` — reports and settings (managers/admins, who
+          usually also hold floor + kitchen).
+        - `danmat.restaurant:read` / `:write` — this MCP surface (an agent or
+          integration). Each action is an independent, wildcard-immune grant, so a
+          cook (`:kitchen`) cannot take payment and a waiter (`:floor`) cannot be
+          handed the books.
 
         Amounts are strings with two decimals; order totals are always computed from
         the line items, never set directly.
