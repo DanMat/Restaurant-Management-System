@@ -83,3 +83,18 @@ capability role, so each sees only what their role allows:
 Logging in as a waiter vs a manager shows the capability model live: the cook has
 no payment button, and a floor login opening a reservation's "Guest in CRM" link
 is refused while the manager's is not — the cross-plugin PII gate, visible.
+
+### The "Explore as …" picker
+
+So visitors can switch roles without retyping addresses, the sign-in page shows a
+role dropdown (NimbusCMS demo mode, `Config::demoAccounts()`). Deploy the account
+list to the site's `config/demo.php` and mount it read-only:
+
+```sh
+cp deploy/demo.php /opt/ras/config/demo.php     # the 6 public logins above
+# docker-compose.ras.yml → the ras service volumes:
+#   - /opt/ras/config/demo.php:/app/config/demo.php:ro
+```
+
+The picker appears only in demo mode (`NIMBUS_DEMO=1`); the first entry (Manager)
+backs the one-click pre-fill. On a non-demo install the file is ignored entirely.
