@@ -1,0 +1,17 @@
+{
+    "name": "RAS",
+    "version": "0.1.0",
+    "description": "The public face of the Restaurant Automation System — a dark, elegant guest menu carrying the RAS identity. Plain PHP templates, one stylesheet, no build step.",
+    "nav": ["home", "menu_items"],
+    "templates": {
+        "layout": "HTML shell; includes header and footer.",
+        "header": "Site header with the RAS wordmark and the Home/Menu links.",
+        "footer": "Footer with hours and contact.",
+        "entry-home": "The homepage: the `home` single-collection entry, rendered as a restaurant front page (hero, about, featured dishes, hours/location, reservations CTA).",
+        "collection-menu_items": "The guest menu (the `menu_items` collection), grouped by category with prices.",
+        "entry": "A single info page.",
+        "404": "Themed not-found page."
+    },
+    "specialization": "entry-home renders the `home` single collection (fields: hero_kicker/hero_title/hero_tagline, about_title/about_body, hours, address, phone) and shows live featured dishes contributed by the restaurant plugin under `contrib['danmat.restaurant']['featured']` (ADR 0027). collection-menu_items renders the `menu_items` collection — each item has a `price` number and a `category` relation (expanded), grouped by category name, priced, with dotted leaders.",
+    "assets": "Files under assets/ are served at /theme/assets/<path> (e.g. assets/app.css -> /theme/assets/app.css)."
+}

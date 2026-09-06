@@ -1,0 +1,27 @@
+name: Theme CI
+
+# The RAS public theme is plain PHP templates (no build step, no test DB), so CI
+# just lints them for syntax on the supported PHP versions.
+
+on:
+  push:
+    branches: [nimbus-rebuild, 'slice/**']
+    paths: ['theme/**', '.github/workflows/theme-ci.yml']
+  pull_request:
+    paths: ['theme/**', '.github/workflows/theme-ci.yml']
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint templates
+        run: |
+          for f in theme/templates/*.php; do php -l "$f"; done
