@@ -31,7 +31,7 @@ final class ReportsAdmin
         $active = $this->reports->activeOrders();
 
         return $this->styles($nonce)
-            . '<div class="nb-page-head"><h1>Reports</h1></div>'
+            . Branding::head('Reports', 'Revenue and what is selling.', $nonce)
             . '<p class="nb-muted rz-intro">How service is going — revenue and what is selling. Figures are from settled (paid) orders.</p>'
             . '<div class="rz-cards">'
             . $this->card('Revenue today', $today['revenue'], $today['orders'] . ' paid')

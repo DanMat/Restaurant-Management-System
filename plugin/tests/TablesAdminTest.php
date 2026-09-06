@@ -58,7 +58,8 @@ final class TablesAdminTest extends TestCase
 
         $html = $this->admin->render('CSRF123', null, null, null, 'n');
 
-        self::assertStringContainsString('rz-status-occupied', $html, 'the card is marked with its status');
+        self::assertStringContainsString('rz-status-occupied', $html, 'the token is marked with its status');
+        self::assertStringContainsString('rz-circle', $html, 'tables render as circular tokens (the RAS signature)');
         self::assertStringContainsString('action="/admin/restaurant/table-status"', $html, 'quick-action posts to the status action');
         // An occupied table offers "Clear" (→ dirty), not "Seat".
         self::assertStringContainsString('value="dirty"', $html);

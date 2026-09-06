@@ -48,7 +48,7 @@ final class KitchenAdmin
         }
 
         return $this->styles($nonce)
-            . '<div class="nb-page-head"><h1>Kitchen</h1></div>'
+            . Branding::head('Kitchen', 'Tickets on the line, oldest first.', $nonce)
             . $this->notice($notice)
             . '<p class="nb-muted kx-intro">Tickets on the line. Start a ticket when you begin it, mark it ready when it is up for the pass.</p>'
             . '<div class="kx-board">' . $cols . '</div>'

@@ -43,10 +43,10 @@ final class TablesAdmin
         $filter    = ($status !== null && in_array(trim($status), Tables::STATUSES, true)) ? trim($status) : null;
 
         return $this->styles($nonce)
-            . '<div class="nb-page-head"><h1>Floor</h1></div>'
+            . Branding::head('Floor', 'The room at a glance — seat, clear and turn tables.', $nonce)
             . $this->notice($notice)
-            . '<p class="nb-muted rz-intro">Your tables and their status. Seat guests, send tables for cleaning, and turn them for the next party.</p>'
             . $this->form($csrf, $editTable)
+            . $this->legend()
             . $this->filterBar($filter)
             . $this->board($csrf, $this->tables->all($filter), $filter);
     }
@@ -85,7 +85,21 @@ final class TablesAdmin
         return '<div class="rz-filter" role="group" aria-label="Filter by status">' . $chips . '</div>';
     }
 
+    /** A key to the status colours — the circular tokens read at a glance. */
+    private function legend(): string
+    {
+        $items = '';
+        foreach (self::STATUS_LABELS as $s => $label) {
+            $items .= '<span class="rz-key rz-status-' . self::e($s) . '"><i class="rz-dot"></i>' . self::e($label) . '</span>';
+        }
+        return '<div class="rz-legend">' . $items . '</div>';
+    }
+
     /**
+     * The floor as a grid of circular table tokens, coloured by status — the RAS
+     * signature, uplifted. The circle links to the table; the seats and the
+     * contextual quick actions sit beneath it.
+     *
      * @param list<array<string,mixed>> $tables
      */
     private function board(string $csrf, array $tables, ?string $filter): string
@@ -95,20 +109,18 @@ final class TablesAdmin
             return '<p class="nb-muted">' . $msg . '</p>';
         }
 
-        $cards = '';
+        $tokens = '';
         foreach ($tables as $t) {
             $status = (string) $t['status'];
-            $cards .= '<li class="rz-table rz-status-' . self::e($status) . '">'
-                . '<div class="rz-table-top">'
-                . '<a class="rz-table-label" href="/admin/restaurant?edit=' . self::e((string) $t['id']) . '">' . self::e((string) $t['label']) . '</a>'
-                . '<span class="rz-badge rz-badge-' . self::e($status) . '">' . self::e(self::STATUS_LABELS[$status] ?? $status) . '</span>'
-                . '</div>'
-                . '<div class="rz-table-seats">' . self::e((string) $t['seats']) . ' seats</div>'
-                . '<div class="rz-table-acts">' . $this->actions($csrf, (int) $t['id'], $status) . '</div>'
+            $tokens .= '<li class="rz-token rz-status-' . self::e($status) . '">'
+                . '<a class="rz-circle" href="/admin/restaurant?edit=' . self::e((string) $t['id']) . '" title="' . self::e(self::STATUS_LABELS[$status] ?? $status) . '">'
+                . '<span class="rz-circle-label">' . self::e((string) $t['label']) . '</span></a>'
+                . '<div class="rz-token-seats">' . self::e((string) $t['seats']) . ' seats · ' . self::e(self::STATUS_LABELS[$status] ?? $status) . '</div>'
+                . '<div class="rz-token-acts">' . $this->actions($csrf, (int) $t['id'], $status) . '</div>'
                 . '</li>';
         }
 
-        return '<ul class="rz-board">' . $cards . '</ul>';
+        return '<ul class="rz-board">' . $tokens . '</ul>';
     }
 
     /** The status quick-actions relevant to a table's current state. */
@@ -166,24 +178,20 @@ final class TablesAdmin
             . '.rz-filter{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 1rem}'
             . '.rz-chip{text-decoration:none;background:rgba(128,128,128,.12);border-radius:999px;padding:.3rem .8rem;font-size:.82rem;color:inherit;min-height:32px;display:inline-flex;align-items:center}'
             . '.rz-chip.is-active{background:rgba(52,152,219,.22);color:#2471a3;font-weight:700}'
-            . '.rz-board{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.75rem}'
-            . '.rz-table{border:1px solid rgba(128,128,128,.2);border-left:4px solid rgba(128,128,128,.4);border-radius:10px;padding:.6rem .7rem;display:flex;flex-direction:column;gap:.4rem}'
-            . '.rz-status-open{border-left-color:#27ae60}'
-            . '.rz-status-occupied{border-left-color:#2980b9}'
-            . '.rz-status-dirty{border-left-color:#c0392b}'
-            . '.rz-status-reserved{border-left-color:#b8860b}'
-            . '.rz-table-top{display:flex;justify-content:space-between;align-items:center;gap:.4rem}'
-            . '.rz-table-label{font-weight:800;font-size:1.15rem;text-decoration:none}'
-            . '.rz-table-seats{font-size:.8rem;opacity:.7}'
-            . '.rz-badge{font-size:.65rem;font-weight:700;padding:.1rem .4rem;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}'
-            . '.rz-badge-open{background:rgba(39,174,96,.18);color:#1e8449}'
-            . '.rz-badge-occupied{background:rgba(41,128,185,.18);color:#2471a3}'
-            . '.rz-badge-dirty{background:rgba(192,57,43,.15);color:#c0392b}'
-            . '.rz-badge-reserved{background:rgba(184,134,11,.18);color:#9a7d0a}'
-            . '.rz-table-acts{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;margin-top:.1rem}'
+            . '.rz-status-open{--rs:#3d8b40}.rz-status-occupied{--rs:#b8860b}.rz-status-dirty{--rs:#c0392b}.rz-status-reserved{--rs:#2471a3}'
+            . '.rz-legend{display:flex;flex-wrap:wrap;gap:.9rem;margin:0 0 1rem;font-size:.8rem;color:var(--nb-muted,#6b7280)}'
+            . '.rz-key{display:inline-flex;align-items:center;gap:.4rem}'
+            . '.rz-dot{width:.75rem;height:.75rem;border-radius:50%;background:var(--rs,#888);display:inline-block}'
+            . '.rz-board{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr));gap:1rem .75rem}'
+            . '.rz-token{display:flex;flex-direction:column;align-items:center;gap:.4rem;text-align:center}'
+            . '.rz-circle{width:76px;height:76px;border-radius:50%;background:var(--rs,#888);color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;padding:.35rem;box-sizing:border-box;transition:transform .08s ease}'
+            . '.rz-circle:hover{transform:scale(1.05)}'
+            . '.rz-circle-label{font-weight:700;font-size:1.05rem;line-height:1.1;overflow-wrap:anywhere}'
+            . '.rz-token-seats{font-size:.72rem;color:var(--nb-muted,#6b7280);line-height:1.2}'
+            . '.rz-token-acts{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;justify-content:center}'
             . '.rz-act{display:inline}'
-            . '.rz-act-btn{min-height:36px;padding:.25rem .6rem;font-size:.8rem}'
-            . '.rz-link-danger{background:none;border:0;color:#c0392b;font:inherit;cursor:pointer;text-decoration:underline;padding:.25rem 0;min-height:36px}'
+            . '.rz-act-btn{min-height:32px;padding:.2rem .55rem;font-size:.75rem}'
+            . '.rz-link-danger{background:none;border:0;color:#c0392b;font:inherit;cursor:pointer;text-decoration:underline;padding:.2rem 0;min-height:32px;font-size:.75rem}'
             . '</style>';
     }
 
