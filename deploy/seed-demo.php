@@ -150,8 +150,7 @@ $t = [];
 foreach ([['1', 2], ['2', 4], ['3', 4], ['4', 2], ['5', 6], ['6', 2], ['Patio 1', 4], ['Patio 2', 4]] as [$label, $seats]) {
     $t[$label] = $tables->save(null, ['label' => $label, 'seats' => (string) $seats], $now);
 }
-$tables->setStatus($t['4'], 'dirty', $now);
-$tables->setStatus($t['5'], 'reserved', $now);
+$tables->setStatus($t['5'], 'reserved', $now); // held for tonight's booking
 
 // An open order on table 2, mid-service and sent to the kitchen.
 $o1 = $orders->open($t['2'], $now);
@@ -163,13 +162,14 @@ $o2 = $orders->open($t['3'], $now);
 $orders->addItem($o2, null, 'Chicken Marsala', '8.21', 1, $now);
 $orders->setStatus($o2, 'ready', $now);
 
-// A couple of settled orders today, so Reports has revenue.
-foreach ([['Fudge', '4.99', 2], ['Miso Soup', '3.50', 3]] as $i => [$name, $price, $qty]) {
-    $tid = $tables->save(null, ['label' => 'H' . $i, 'seats' => '2'], $now);
-    $paid = $orders->open($tid, $now);
-    $orders->addItem($paid, null, $name, $price, $qty, $now);
-    $orders->pay($paid, 'card', $now);
-}
+// Two just-settled tables — paying turns each to `dirty` (awaiting bussing), which
+// also gives Reports some revenue. No throwaway tables: it happens on real ones.
+$paid1 = $orders->open($t['6'], $now);
+$orders->addItem($paid1, null, 'Fudge', '4.99', 2, $now);
+$orders->pay($paid1, 'card', $now);
+$paid2 = $orders->open($t['Patio 1'], $now);
+$orders->addItem($paid2, null, 'Miso Soup', '3.50', 3, $now);
+$orders->pay($paid2, 'cash', $now);
 
 // A guest in the CRM, and a reservation linked to them — floor staff see the
 // booking; only the manager (crm:read) can open the guest record.
@@ -178,5 +178,5 @@ $contactId = $crm->save(null, ['first_name' => 'Ada', 'last_name' => 'Lovelace',
 $reservations->save(null, ['party_name' => 'Lovelace', 'party_size' => '4', 'reserved_at' => date('Y-m-d 19:30:00'), 'table_id' => (string) $t['5'], 'contact_id' => (string) $contactId, 'notes' => 'Window seat.'], $now);
 $reservations->save(null, ['party_name' => 'Turing', 'party_size' => '2', 'reserved_at' => date('Y-m-d 20:00:00')], $now);
 
-echo "  floor: 8 tables, 2 open orders, 2 paid, 2 reservations, 1 CRM guest\n";
+echo "  floor: 8 tables (2 occupied, 2 dirty/just-paid, 1 reserved, 3 open), 2 open orders, 2 paid, 2 reservations, 1 CRM guest\n";
 echo "Done. Demo password for every staff login: {$demoPassword}\n";
