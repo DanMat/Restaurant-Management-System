@@ -41,7 +41,9 @@ collections. Zero Nimbus core change.
   Automation System" identity, uplifted: the signature **circular table tokens** are
   back on the Floor (modernized status colours), with a shared RAS header across
   every terminal.
-- ⬜ Public menu theme, then deploy — the rest of the finale.
+- ✅ **Public menu theme** — a dark, elegant guest menu in the RAS identity
+  (`theme/`), rendering the `menu_items` collection grouped by category with prices.
+- ⬜ Deploy live + create staff logins, then merge to `master` — the last step.
 
 **Every operational vertical of the legacy system is now rebuilt on Nimbus**, and
 the rebuild drove two reusable core capabilities (ADR 0029 content-read, ADR 0030
