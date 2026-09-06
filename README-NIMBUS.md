@@ -33,7 +33,9 @@ collections. Zero Nimbus core change.
 - ✅ **Staff & roles** — fine-grained capabilities (floor / kitchen / manage) gate
   the terminals, so a cook can't take payment and a waiter can't be handed the
   books. Forced the core capability behind ADR 0030 (closing F4).
-- ⬜ Reservations, Reports — next.
+- ✅ **Reservations** — a booking book that links guests to their **CRM** records by
+  id, without the restaurant ever reading CRM data (the PII boundary held).
+- ⬜ Reports, then theme + deploy — next.
 
 ## Layout
 
