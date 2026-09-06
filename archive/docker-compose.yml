@@ -1,0 +1,29 @@
+# Run the original 2014 app locally:  docker compose up --build
+# Then open http://localhost:8090 and sign in (see archive/README.md for logins).
+services:
+  web:
+    build: .
+    ports:
+      - "8090:80"
+    environment:
+      DB_HOST: db
+      DB_NAME: oose
+      DB_USER: root
+      DB_PASS: ""
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    # MySQL 5.7 — the old `mysql` extension can't speak MySQL 8's default auth.
+    image: mysql:5.7
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"   # the 2014 code connects as root with no password
+      MYSQL_DATABASE: oose
+    volumes:
+      - ./oose.sql:/docker-entrypoint-initdb.d/oose.sql:ro   # auto-imported on first boot
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
