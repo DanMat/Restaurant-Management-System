@@ -14,6 +14,7 @@
       <span class="brand-name"><?= $e($appName) ?></span>
     </a>
     <nav class="site-nav" aria-label="Primary">
+      <a href="/">Home</a>
       <a href="/menu_items">Menu</a>
     </nav>
   </div>

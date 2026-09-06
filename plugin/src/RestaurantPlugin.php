@@ -57,6 +57,11 @@ final class RestaurantPlugin implements Plugin
         // The agent surface — every tool gates on danmat.restaurant:read|write (ADR 0016).
         $context->mcp()->register(new RestaurantToolset($tables, $orders, $menu, $reservations, $reports));
 
+        // The public homepage's live "featured dishes" — the plugin feeds the theme
+        // a handful of menu items via the view-data hinge (ADR 0027). Data only,
+        // home page only, visitor-independent (cache-safe); the theme escapes it.
+        $context->viewData()->register(new HomeViewData($menu));
+
         // The floor board. A staff terminal is a capability-gated ADMIN PAGE, never a
         // public plugin route (routes carry no auth/CSRF). Gated on :write; the handler
         // gets the CSP nonce (2nd arg) and a CSRF token (3rd arg).

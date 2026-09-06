@@ -146,16 +146,43 @@ foreach ($menu as [$name, $price, $cat, $desc]) {
 }
 echo "  menu: " . count($catIds) . " categories, " . count($menu) . " items\n";
 
-// --- 3b) Site settings: brand + render the menu at the root ----------------
+// --- 3b) The homepage (a `single`-kind collection: one editable entry) ------
+// The public root ("/") renders this as a restaurant front page (theme
+// `entry-home.php`); featured dishes come live from the menu via the plugin's
+// view-data contributor. Modeled as content so the copy is editable in the CMS.
+$collections->create('home', 'Home', '#', '', ['kind' => 'single', 'permissions' => []], [
+    ['handle' => 'hero_kicker', 'label' => 'Hero kicker', 'type' => 'text', 'required' => false, 'options' => []],
+    ['handle' => 'hero_title', 'label' => 'Hero title', 'type' => 'text', 'required' => false, 'options' => []],
+    ['handle' => 'hero_tagline', 'label' => 'Hero tagline', 'type' => 'textarea', 'required' => false, 'options' => []],
+    ['handle' => 'about_title', 'label' => 'About title', 'type' => 'text', 'required' => false, 'options' => []],
+    ['handle' => 'about_body', 'label' => 'About body', 'type' => 'textarea', 'required' => false, 'options' => []],
+    ['handle' => 'hours', 'label' => 'Hours', 'type' => 'textarea', 'required' => false, 'options' => []],
+    ['handle' => 'address', 'label' => 'Address', 'type' => 'textarea', 'required' => false, 'options' => []],
+    ['handle' => 'phone', 'label' => 'Phone', 'type' => 'text', 'required' => false, 'options' => []],
+]);
+$homeCol = $repo->findByHandle('home');
+$entries->save($homeCol, new EntryInput('The Copper Table', 'home', 'published', [
+    'hero_kicker'  => 'Est. 2014 · Modern American',
+    'hero_title'   => 'The Copper Table',
+    'hero_tagline' => 'A neighbourhood kitchen for lunch and dinner — seasonal plates, an easy room, and a short list done well.',
+    'about_title'  => 'About the table',
+    'about_body'   => "We opened on a corner in 2014 with a wood-topped bar and a small menu that changes with the season. Everything is cooked to order; nothing leaves the pass we wouldn't eat ourselves.\n\nToday the room runs on the Restaurant Automation System — a live NimbusCMS demo.",
+    'hours'        => "Mon–Thu · 11:00–22:00\nFri–Sat · 11:00–23:00\nSunday · 10:00–21:00",
+    'address'      => "18 Copper Lane\nOld Town\nEC1 4RS",
+    'phone'        => '020 7946 0142',
+], '2024-01-01 00:00:00'), null, null);
+echo "  homepage: 1 single collection + entry\n";
+
+// --- 3c) Site settings: brand + render the homepage at the root ------------
 // These are DB settings (nb_settings), which shadow config/site.php at runtime —
-// so the guest-facing root ("/") shows the branded menu, not the bare Nimbus
+// so the guest-facing root ("/") shows the branded homepage, not the bare Nimbus
 // placeholder. Seeded here so a from-scratch rebuild matches the golden restore.
 (new SettingsRepository($db))->setMany([
     'site.title'       => 'The Copper Table',
     'site.description' => 'A restaurant running on the Restaurant Automation System — a live NimbusCMS demo.',
-    'site.home'        => 'menu_items',
+    'site.home'        => 'home',
 ]);
-echo "  settings: home -> menu_items, brand -> The Copper Table\n";
+echo "  settings: home -> home, brand -> The Copper Table\n";
 
 // --- 4) Live floor / orders / reservations ---------------------------------
 $storage      = static fn (): PluginStorage => new PluginStorage($db);
