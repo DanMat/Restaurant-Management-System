@@ -244,4 +244,81 @@ final class OrdersTest extends TestCase
         self::assertCount(1, $this->orders->all('served'));
         self::assertCount(1, $this->orders->all(null, $t2));
     }
+
+    // --- online ordering (Slice C2) --------------------------------------
+
+    public function test_place_online_is_table_less_paid_and_snapshots_prices(): void
+    {
+        // Client sends only ids + qty; the price is snapshotted, the total computed.
+        $order = $this->orders->placeOnline(
+            [['menu_item_id' => 101, 'qty' => 2], ['menu_item_id' => 102, 'qty' => 1]],
+            'Grace Hopper',
+            '555-0148',
+            self::NOW,
+        );
+
+        self::assertSame('online', $order['channel']);
+        self::assertNull($order['table_id'], 'an online order has no table');
+        self::assertSame('sent', $order['status'], 'it lands straight in the kitchen queue');
+        self::assertTrue($order['paid']);
+        self::assertSame('online-demo', $order['payment_method']);
+        self::assertSame('Grace Hopper', $order['customer_name']);
+        self::assertSame('28.50', $order['total'], '2×12.50 + 1×3.50, computed server-side');
+    }
+
+    public function test_place_online_ignores_a_posted_price(): void
+    {
+        // A tampered price in the request is irrelevant — only id + qty are read.
+        $order = $this->orders->placeOnline(
+            [['menu_item_id' => 101, 'qty' => 1, 'price' => '0.01']],
+            'Mallory',
+            '555-0000',
+            self::NOW,
+        );
+        self::assertSame('12.50', $order['total'], 'the menu price wins, not the posted one');
+    }
+
+    public function test_place_online_drops_unknown_items_and_rejects_an_empty_cart(): void
+    {
+        $order = $this->orders->placeOnline(
+            [['menu_item_id' => 999999, 'qty' => 3], ['menu_item_id' => 101, 'qty' => 1]],
+            'Ada',
+            '555-1',
+            self::NOW,
+        );
+        self::assertCount(1, $order['items'], 'the unknown item is dropped');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->orders->placeOnline([['menu_item_id' => 999999, 'qty' => 1]], 'Ada', '555-1', self::NOW);
+    }
+
+    public function test_place_online_requires_a_name_and_phone(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->orders->placeOnline([['menu_item_id' => 101, 'qty' => 1]], '  ', '555-1', self::NOW);
+    }
+
+    public function test_online_order_reaches_the_kitchen_queue_with_its_label(): void
+    {
+        $this->orders->placeOnline([['menu_item_id' => 101, 'qty' => 1]], 'Grace Hopper', '555-0148', self::NOW);
+
+        $tickets = $this->orders->ticketsByStatus(['sent']);
+        self::assertCount(1, $tickets);
+        self::assertSame('online', $tickets[0]['channel']);
+        self::assertSame('Grace Hopper', $tickets[0]['customer_name']);
+        self::assertNull($tickets[0]['table_id']);
+    }
+
+    public function test_online_confirmation_is_token_gated(): void
+    {
+        $order = $this->orders->placeOnline([['menu_item_id' => 101, 'qty' => 1]], 'Grace', '555-0148', self::NOW);
+        $token = $this->orders->confirmToken($order['id']);
+        self::assertNotNull($token);
+
+        self::assertNull($this->orders->onlineForConfirmation($order['id'], 'wrong-token'), 'a wrong token reveals nothing');
+        self::assertNull($this->orders->onlineForConfirmation($order['id'], ''), 'an empty token reveals nothing');
+        $ok = $this->orders->onlineForConfirmation($order['id'], $token);
+        self::assertNotNull($ok);
+        self::assertSame($order['id'], $ok['id']);
+    }
 }

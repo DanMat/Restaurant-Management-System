@@ -150,6 +150,61 @@ img { max-width: 100%; height: auto; }
 .prose { color: var(--text); }
 .notfound { text-align: center; }
 
+/* Online ordering */
+.order-page { padding: 3rem 0 4rem; }
+.demo-note {
+  display: inline-block; margin: 1rem auto 0; padding: .5rem .9rem;
+  background: rgba(212, 160, 23, 0.12); border: 1px solid rgba(212, 160, 23, 0.35);
+  border-radius: 8px; color: var(--gold-bright); font-size: .9rem;
+}
+.order-error {
+  max-width: 46rem; margin: 0 auto 1.5rem; padding: .7rem 1rem; text-align: center;
+  background: rgba(192, 57, 43, 0.15); border: 1px solid rgba(192, 57, 43, 0.5);
+  border-radius: 8px; color: #f2b8b1;
+}
+.order-form { max-width: 40rem; margin: 0 auto; }
+.hp { position: absolute; left: -5000px; width: 1px; height: 1px; overflow: hidden; }
+
+.order-group { margin: 0 0 2rem; }
+.order-group h2 {
+  font-family: var(--serif); font-weight: 400; font-size: 1.4rem; margin: 0 0 .8rem;
+  padding-bottom: .5rem; border-bottom: 1px solid var(--rule);
+}
+.order-list { list-style: none; margin: 0; padding: 0; }
+.order-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .65rem 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+.order-item-main { display: flex; align-items: baseline; gap: .6rem; min-width: 0; }
+.order-name { font-weight: 500; }
+.order-price { color: var(--gold); font-variant-numeric: tabular-nums; }
+.order-qty { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; }
+.order-qty-label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+
+.order-page input[type="number"],
+.order-page input[type="text"],
+.order-page input[type="tel"] {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--rule); border-radius: 6px; padding: .5rem .6rem; font: inherit;
+}
+.order-page input:focus { outline: none; border-color: var(--gold); }
+.order-qty input[type="number"] { width: 4.5rem; text-align: center; }
+
+.order-details { margin: 2rem 0 1.5rem; }
+.order-details h2 { font-family: var(--serif); font-weight: 400; font-size: 1.4rem; margin: 0 0 1rem; }
+.order-field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1rem; }
+.order-field label { font-size: .85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.order-field input { width: 100%; }
+.order-submit { width: 100%; border: 0; cursor: pointer; font-size: .9rem; }
+
+.order-receipt { list-style: none; margin: 1.5rem 0 0; padding: 0; }
+.order-receipt-row { display: flex; align-items: baseline; gap: .7rem; padding: .5rem 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.06); }
+.order-receipt-qty { color: var(--muted); font-variant-numeric: tabular-nums; }
+.order-receipt-name { flex: 1; }
+.order-receipt-price { color: var(--gold); font-variant-numeric: tabular-nums; }
+.order-receipt-total { display: flex; justify-content: space-between; margin: 1rem 0 0; padding-top: .8rem; border-top: 1px solid var(--rule); font-weight: 600; }
+.order-receipt-total span:last-child { color: var(--gold); font-variant-numeric: tabular-nums; }
+
 /* Footer */
 .site-footer { border-top: 1px solid var(--rule); padding: 2.5rem 0; margin-top: 2rem; }
 .footer-inner { text-align: center; }

@@ -32,6 +32,9 @@ final class Orders
     private const MAX_NAME = 200;
     private const MAX_QTY  = 999;
 
+    /** Most distinct lines a single online order may carry (anti-abuse cap). */
+    public const MAX_ONLINE_LINES = 40;
+
     /**
      * @param \Closure():PluginStorage        $storage  resolved lazily
      * @param \Closure(int):(array{name:string,price:string}|null) $snapshot menu-item resolver
@@ -64,14 +67,117 @@ final class Orders
     }
 
     /**
+     * Place an ONLINE (takeaway) order: a table-less order that goes straight to the
+     * kitchen queue as already paid — a SIMULATED checkout (no real payment, no
+     * processor, no card data; `payment_method` is `online-demo`). The client sends
+     * only `{menu_item_id, qty}` per line; the **name and unit price are snapshotted
+     * from the published menu** (ADR 0029) and the **total is computed server-side**,
+     * so a client can never dictate prices or the amount. Unknown/unpublished items
+     * are dropped; qty and line-count are capped; a name and phone are required.
+     *
+     * @param  list<array{menu_item_id:int,qty:int}> $cart
+     * @return array{id:int,table_id:?int,channel:string,customer_name:?string,customer_phone:?string,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
+     */
+    public function placeOnline(array $cart, string $name, string $phone, string $now): array
+    {
+        $name  = trim($name);
+        $phone = trim($phone);
+        if ($name === '' || $phone === '') {
+            throw new \InvalidArgumentException('A name and a phone number are required.');
+        }
+        $name  = mb_substr($name, 0, 120);
+        $phone = mb_substr($phone, 0, 40);
+
+        // Build the lines from the menu — snapshot name + price, never trust the
+        // client's prices; drop anything not live-published; cap qty and line count.
+        $lines = [];
+        foreach ($cart as $entry) {
+            if (count($lines) >= self::MAX_ONLINE_LINES) {
+                break;
+            }
+            $menuItemId = (int) $entry['menu_item_id'];
+            $qty        = (int) $entry['qty'];
+            if ($menuItemId <= 0 || $qty < 1) {
+                continue;
+            }
+            $qty  = min($qty, self::MAX_QTY);
+            $snap = ($this->snapshot)($menuItemId);
+            if ($snap === null) {
+                continue; // unknown or unpublished menu item — dropped
+            }
+            $lines[] = ['menu_item_id' => $menuItemId, 'name' => $snap['name'], 'price' => $snap['price'], 'qty' => $qty];
+        }
+        if ($lines === []) {
+            throw new \InvalidArgumentException('Your order is empty.');
+        }
+
+        $total = 0.0;
+        foreach ($lines as $line) {
+            $total += (float) $line['price'] * $line['qty'];
+        }
+        $amount = number_format($total, 2, '.', '');
+
+        // A random confirmation token so the confirmation page is not enumerable by
+        // order id — a visitor can only see the order they just placed.
+        $token = bin2hex(random_bytes(8));
+
+        $orderId = (int) $this->storage()->transaction(function () use ($lines, $name, $phone, $amount, $token, $now): int {
+            $id = $this->storage()->insert(
+                'INSERT INTO ' . Schema::ORDER . ' (table_id, channel, customer_name, customer_phone, confirm_token, status, paid, amount_paid, payment_method, paid_at, created_at, updated_at)
+                 VALUES (NULL, :channel, :cname, :cphone, :token, :status, 1, :amount, :method, :paid_at, :created, :updated)',
+                ['channel' => 'online', 'cname' => $name, 'cphone' => $phone, 'token' => $token, 'status' => 'sent', 'amount' => $amount, 'method' => 'online-demo', 'paid_at' => $now, 'created' => $now, 'updated' => $now],
+            );
+            foreach ($lines as $line) {
+                $this->storage()->insert(
+                    'INSERT INTO ' . Schema::ORDER_ITEM . ' (order_id, menu_item_id, name, unit_price, qty, created_at)
+                     VALUES (:order, :menu, :name, :price, :qty, :created)',
+                    ['order' => $id, 'menu' => $line['menu_item_id'], 'name' => $line['name'], 'price' => $line['price'], 'qty' => $line['qty'], 'created' => $now],
+                );
+            }
+            return $id;
+        });
+
+        $order = $this->get($orderId);
+        assert($order !== null);
+        return $order;
+    }
+
+    /** The confirmation token for an order (for building its confirmation URL), or null. */
+    public function confirmToken(int $orderId): ?string
+    {
+        $row = $this->storage()->selectOne(
+            'SELECT confirm_token FROM ' . Schema::ORDER . ' WHERE id = :id',
+            ['id' => $orderId],
+        );
+        return $row === null || ($row['confirm_token'] ?? null) === null ? null : (string) $row['confirm_token'];
+    }
+
+    /**
+     * One ONLINE order for its confirmation page — returned only when the order is
+     * online AND the supplied token matches (constant-time), so the page cannot be
+     * enumerated by id and never reveals a dine-in or another guest's order.
+     *
+     * @return array{id:int,table_id:?int,channel:string,customer_name:?string,customer_phone:?string,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}|null
+     */
+    public function onlineForConfirmation(int $orderId, string $token): ?array
+    {
+        $expected = $this->confirmToken($orderId);
+        if ($expected === null || $token === '' || !hash_equals($expected, $token)) {
+            return null;
+        }
+        $order = $this->get($orderId);
+        return ($order !== null && $order['channel'] === 'online') ? $order : null;
+    }
+
+    /**
      * One order with its line items and computed total, or null.
      *
-     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}|null
+     * @return array{id:int,table_id:?int,channel:string,customer_name:?string,customer_phone:?string,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}|null
      */
     public function get(int $id): ?array
     {
         $row = $this->storage()->selectOne(
-            'SELECT o.id, o.table_id, o.status, o.paid, o.amount_paid, o.payment_method, o.paid_at, o.created_at, o.updated_at, t.label AS table_label
+            'SELECT o.id, o.table_id, o.channel, o.customer_name, o.customer_phone, o.status, o.paid, o.amount_paid, o.payment_method, o.paid_at, o.created_at, o.updated_at, t.label AS table_label
              FROM ' . Schema::ORDER . ' o LEFT JOIN ' . Schema::TABLE . ' t ON t.id = o.table_id
              WHERE o.id = :id',
             ['id' => $id],
@@ -88,7 +194,7 @@ final class Orders
      * table, each with its computed total and item count (no line items — get() has
      * those). Most-recently-updated first.
      *
-     * @return list<array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,item_count:int,total:string,created_at:string,updated_at:string}>
+     * @return list<array{id:int,table_id:?int,channel:string,customer_name:?string,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,item_count:int,total:string,created_at:string,updated_at:string}>
      */
     public function all(?string $status = null, ?int $tableId = null): array
     {
@@ -103,7 +209,7 @@ final class Orders
             $params['table'] = $tableId;
         }
 
-        $sql = 'SELECT o.id, o.table_id, o.status, o.paid, o.amount_paid, o.payment_method, o.created_at, o.updated_at, t.label AS table_label,
+        $sql = 'SELECT o.id, o.table_id, o.channel, o.customer_name, o.status, o.paid, o.amount_paid, o.payment_method, o.created_at, o.updated_at, t.label AS table_label,
                        (SELECT COALESCE(SUM(i.unit_price * i.qty), 0) FROM ' . Schema::ORDER_ITEM . ' i WHERE i.order_id = o.id) AS total,
                        (SELECT COUNT(*) FROM ' . Schema::ORDER_ITEM . ' i WHERE i.order_id = o.id) AS item_count
                 FROM ' . Schema::ORDER . ' o LEFT JOIN ' . Schema::TABLE . ' t ON t.id = o.table_id';
@@ -115,7 +221,9 @@ final class Orders
         return array_map(function (array $r): array {
             return [
                 'id'             => (int) $r['id'],
-                'table_id'       => (int) $r['table_id'],
+                'table_id'       => ($r['table_id'] ?? null) === null ? null : (int) $r['table_id'],
+                'channel'        => (string) ($r['channel'] ?? 'dine_in'),
+                'customer_name'  => ($r['customer_name'] ?? null) === null ? null : (string) $r['customer_name'],
                 'table_label'    => ($r['table_label'] ?? null) === null ? null : (string) $r['table_label'],
                 'status'         => (string) $r['status'],
                 'paid'           => (bool) $r['paid'],
@@ -135,7 +243,7 @@ final class Orders
      * (orders, then all their items), never N+1. An unknown status is ignored.
      *
      * @param list<string> $statuses
-     * @return list<array{id:int,table_id:int,table_label:?string,status:string,items:list<array{name:string,qty:int}>,created_at:string,updated_at:string}>
+     * @return list<array{id:int,table_id:?int,channel:string,customer_name:?string,table_label:?string,status:string,items:list<array{name:string,qty:int}>,created_at:string,updated_at:string}>
      */
     public function ticketsByStatus(array $statuses): array
     {
@@ -151,7 +259,7 @@ final class Orders
             $params['s' . $i] = $status;
         }
         $orders = $this->storage()->select(
-            'SELECT o.id, o.table_id, o.status, o.created_at, o.updated_at, t.label AS table_label
+            'SELECT o.id, o.table_id, o.channel, o.customer_name, o.status, o.created_at, o.updated_at, t.label AS table_label
              FROM ' . Schema::ORDER . ' o LEFT JOIN ' . Schema::TABLE . ' t ON t.id = o.table_id
              WHERE o.status IN (' . implode(', ', $placeholders) . ') ORDER BY o.updated_at ASC, o.id ASC',
             $params,
@@ -179,13 +287,15 @@ final class Orders
         return array_map(static function (array $r) use ($byOrder): array {
             $id = (int) $r['id'];
             return [
-                'id'          => $id,
-                'table_id'    => (int) $r['table_id'],
-                'table_label' => ($r['table_label'] ?? null) === null ? null : (string) $r['table_label'],
-                'status'      => (string) $r['status'],
-                'items'       => $byOrder[$id] ?? [],
-                'created_at'  => (string) $r['created_at'],
-                'updated_at'  => (string) $r['updated_at'],
+                'id'            => $id,
+                'table_id'      => ($r['table_id'] ?? null) === null ? null : (int) $r['table_id'],
+                'channel'       => (string) ($r['channel'] ?? 'dine_in'),
+                'customer_name' => ($r['customer_name'] ?? null) === null ? null : (string) $r['customer_name'],
+                'table_label'   => ($r['table_label'] ?? null) === null ? null : (string) $r['table_label'],
+                'status'        => (string) $r['status'],
+                'items'         => $byOrder[$id] ?? [],
+                'created_at'    => (string) $r['created_at'],
+                'updated_at'    => (string) $r['updated_at'],
             ];
         }, $orders);
     }
@@ -197,7 +307,7 @@ final class Orders
      * Marks the order paid + closed, and sets its table `dirty` for bussing — all in
      * one transaction. Returns the settled order.
      *
-     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
+     * @return array{id:int,table_id:?int,channel:string,customer_name:?string,customer_phone:?string,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
      */
     public function pay(int $orderId, string $method, string $now): array
     {
@@ -219,8 +329,11 @@ final class Orders
                 'UPDATE ' . Schema::ORDER . ' SET paid = 1, amount_paid = :amount, payment_method = :method, paid_at = :now, status = :status, updated_at = :now2 WHERE id = :id',
                 ['amount' => $amount, 'method' => $method, 'now' => $now, 'status' => 'closed', 'now2' => $now, 'id' => $orderId],
             );
-            // Turn the table over: it now needs bussing before the next party.
-            $this->tables->setStatus($order['table_id'], 'dirty', $now);
+            // Turn the table over: it now needs bussing before the next party. An
+            // online order has no table, so there is nothing to turn.
+            if ($order['table_id'] !== null) {
+                $this->tables->setStatus($order['table_id'], 'dirty', $now);
+            }
         });
 
         $settled = $this->get($orderId);
@@ -341,7 +454,7 @@ final class Orders
     /**
      * @param array<string,mixed> $row
      * @param list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}> $items
-     * @return array{id:int,table_id:int,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
+     * @return array{id:int,table_id:?int,channel:string,customer_name:?string,customer_phone:?string,table_label:?string,status:string,paid:bool,amount_paid:?string,payment_method:?string,paid_at:?string,items:list<array{id:int,menu_item_id:?int,name:string,unit_price:string,qty:int,line_total:string}>,total:string,created_at:string,updated_at:string}
      */
     private function hydrate(array $row, array $items): array
     {
@@ -351,7 +464,10 @@ final class Orders
         }
         return [
             'id'             => (int) $row['id'],
-            'table_id'       => (int) $row['table_id'],
+            'table_id'       => ($row['table_id'] ?? null) === null ? null : (int) $row['table_id'],
+            'channel'        => (string) ($row['channel'] ?? 'dine_in'),
+            'customer_name'  => ($row['customer_name'] ?? null) === null ? null : (string) $row['customer_name'],
+            'customer_phone' => ($row['customer_phone'] ?? null) === null ? null : (string) $row['customer_phone'],
             'table_label'    => ($row['table_label'] ?? null) === null ? null : (string) $row['table_label'],
             'status'         => (string) $row['status'],
             'paid'           => (bool) $row['paid'],
