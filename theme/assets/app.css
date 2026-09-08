@@ -217,3 +217,25 @@ img { max-width: 100%; height: auto; }
   .brand-name { display: none; }
   body { font-size: 16px; }
 }
+
+/* ---------- Journal (blog) ---------- */
+.journal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2.25rem; }
+.journal-item { border-bottom: 1px solid var(--rule); padding-bottom: 2rem; }
+.journal-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.journal-title { font-family: var(--serif); font-weight: 400; font-size: 1.7rem; margin: 0; color: var(--text); }
+.journal-link { display: inline-block; }
+.journal-link:hover .journal-title { color: var(--gold-bright); }
+.journal-date { color: var(--muted); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; margin: .45rem 0 0; }
+.journal-summary { color: var(--muted); margin: .75rem 0 0; max-width: 54ch; }
+.journal-more { display: inline-block; margin-top: .85rem; font-size: .9rem; }
+.journal-article-title { font-family: var(--serif); font-weight: 400; font-size: 2.5rem; line-height: 1.08; margin: .5rem 0 0; text-wrap: balance; }
+.journal-article .eyebrow a { color: var(--gold); }
+.journal-back { margin-top: 2.75rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
+.prose { margin-top: 1.6rem; font-size: 1.06rem; }
+.prose > * + * { margin-top: 1.1rem; }
+.prose h2 { font-family: var(--serif); font-weight: 400; font-size: 1.55rem; margin-top: 2.1rem; }
+.prose h3 { font-family: var(--serif); font-weight: 400; font-size: 1.25rem; margin-top: 1.7rem; }
+.prose ul { margin: 1.1rem 0 0 1.2rem; }
+.prose li + li { margin-top: .35rem; }
+.prose a { text-decoration: underline; text-underline-offset: 2px; }
+.prose code { background: var(--surface); padding: .12rem .38rem; border-radius: 4px; font-size: .9em; }
