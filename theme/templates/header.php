@@ -16,6 +16,7 @@
     <nav class="site-nav" aria-label="Primary">
       <a href="/">Home</a>
       <a href="/menu_items">Menu</a>
+      <a href="/blog">Journal</a>
       <a href="/order">Order</a>
     </nav>
   </div>

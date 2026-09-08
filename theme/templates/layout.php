@@ -16,6 +16,11 @@
 $pageTitle = isset($title) && $title !== '' && $title !== $appName ? $title . ' · ' . $appName : $appName;
 $meta      = $meta ?? [];
 $cssVer    = substr((string) @hash_file('crc32b', __DIR__ . '/../assets/app.css'), 0, 8);
+// On blog/tag pages the Blog plugin contributes the full, correct <head> (canonical,
+// Open Graph article, Twitter, JSON-LD), so the shell defers its own canonical/OG
+// there to avoid emitting them twice.
+$path           = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?: '');
+$pluginOwnsHead = str_starts_with($path, '/blog') || str_starts_with($path, '/tag');
 ?>
 <!doctype html>
 <html lang="en">
@@ -23,15 +28,17 @@ $cssVer    = substr((string) @hash_file('crc32b', __DIR__ . '/../assets/app.css'
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= $e($pageTitle) ?></title>
-    <?php if (!empty($meta['description'])): ?>
-        <meta name="description" content="<?= $e($meta['description']) ?>">
+    <?php if (!$pluginOwnsHead): ?>
+        <?php if (!empty($meta['description'])): ?>
+            <meta name="description" content="<?= $e($meta['description']) ?>">
+        <?php endif; ?>
+        <?php if (!empty($meta['canonical'])): ?>
+            <link rel="canonical" href="<?= $e($meta['canonical']) ?>">
+        <?php endif; ?>
+        <meta property="og:site_name" content="<?= $e($appName) ?>">
+        <meta property="og:title" content="<?= $e($pageTitle) ?>">
+        <meta property="og:type" content="<?= $e($meta['og_type'] ?? 'website') ?>">
     <?php endif; ?>
-    <?php if (!empty($meta['canonical'])): ?>
-        <link rel="canonical" href="<?= $e($meta['canonical']) ?>">
-    <?php endif; ?>
-    <meta property="og:site_name" content="<?= $e($appName) ?>">
-    <meta property="og:title" content="<?= $e($pageTitle) ?>">
-    <meta property="og:type" content="<?= $e($meta['og_type'] ?? 'website') ?>">
     <?= $head ?? '' ?>
     <link rel="stylesheet" href="/theme/assets/app.css?v=<?= $e($cssVer) ?>">
 </head>
